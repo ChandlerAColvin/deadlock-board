@@ -853,7 +853,7 @@
     }
     document.querySelectorAll('.panel[data-sec]').forEach(p => p.classList.toggle('shut', !!PN.shut[p.dataset.sec]));
   }
-  function setSide(side, patch) { Object.assign(PN[side], patch); saveSettings(); applySides(); renderPins(true); }
+  function setSide(side, patch) { Object.assign(PN[side], patch); saveSettings(); applySides(); renderPins(true); if (PN.right.tab === 'routes') renderRoutesTab(); }
   for (const side of ['left', 'right']) {
     const a = sideEl(side);
     a.querySelector('.collapse').onclick = () => setSide(side, { collapsed: !PN[side].collapsed });
@@ -946,6 +946,261 @@
     document.body.classList.remove('mkdrag');
     document.querySelectorAll('aside.side').forEach(s => s.classList.remove('over'));
     if (a) { pinMarker(id, a.dataset.side); toast('Pinned ' + markerTitle(S.byId.get(id)).title, 'Details tab, ' + a.dataset.side + ' side'); }
+  }
+
+  // ---------- box routes: presets and your own ----------
+  // The generated runs (data/box-routes.js) are presets: efficient lines you may or may not use. Any of them can be
+  // copied into "My routes" and edited, or you can draw a new one. My routes live in S.overrides.routes (saved in
+  // this browser and included in god mode's export). S.settings.rt holds what's shown.
+  const RT = S.settings.rt = Object.assign({ sets: { lane: true, long: false, mine: true }, lanes: { york: true, broadway: true, greenwich: true }, side: 'all', off: {}, onIds: {}, opacity: 0.9 }, S.settings.rt || {});
+  S.overrides.routes = S.overrides.routes || [];
+  const PRESETS = (window.DLB_ROUTES && DLB_ROUTES.routes) || [];
+  const RSETS = (window.DLB_ROUTES && DLB_ROUTES.source.sets) || [];
+  const HERO_MS = (window.DLB_ROUTES && DLB_ROUTES.source.heroSpeed) || 7.2;
+  let rtEdit = null, rtUndo = [];
+  const setOf = r => r.custom ? 'mine' : r.set;
+  const setLabel = k => k === 'mine' ? 'My routes' : (RSETS.find(s => s.key === k) || {}).name || k;
+  const runWord = r => r.custom ? (r.name || 'My route') : (r.set === 'long' ? 'Long run ' : 'Lane run ') + r.n;
+  function allRoutes() { return PRESETS.concat(S.overrides.routes); }
+  function routeById(id) { return allRoutes().find(r => r.id === id); }
+  function routeOn(r) {
+    if (r.id === rtEdit) return true;
+    if (RT.off[r.id]) return false;
+    if (RT.onIds[r.id]) return true;
+    return RT.sets[setOf(r)] !== false && RT.lanes[r.lane] !== false && (RT.side === 'all' || r.side === RT.side);
+  }
+  // Map distance in metres between two u/v points.
+  const MPU = () => DLB_MAP.worldUnitsPerU * S.game.metersPerWorldUnit;
+  // Boxes a hand-drawn route passes (within 1.6 m), in the order it reaches them.
+  function boxesOnPath(pts) {
+    const out = [];
+    const lim = 1.6 / MPU();
+    for (const m of S.markers) {
+      if (m.kind !== 'crate' && m.kind !== 'heavy_crate' && m.kind !== 'buff_box') continue;
+      let best = null;
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
+        const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1e-12;
+        const f = Math.max(0, Math.min(1, ((m.u - ax) * dx + (m.v - ay) * dy) / L2));
+        const d = Math.hypot(m.u - ax - dx * f, m.v - ay - dy * f);
+        if (d < lim && (!best || i + f < best.t)) best = { t: i + f, id: m.id };
+      }
+      if (best) out.push(best);
+    }
+    return out.sort((a, b) => a.t - b.t);
+  }
+  // What the map and the list show for a route: its boxes, where the way back starts, its time.
+  function routeView(r) {
+    const G = S.game;
+    const pts = r.pts || [];
+    let boxes = r.boxes || [], ret = r.ret, seconds = r.seconds, lenM = r.lengthM;
+    if (r.custom) {
+      const hits = pts.length > 1 ? boxesOnPath(pts) : [];
+      boxes = hits.map(h => h.id);
+      lenM = 0;
+      for (let i = 0; i + 1 < pts.length; i++) lenM += Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) * MPU();
+      ret = r.ret != null ? r.ret : hits.length ? Math.min(pts.length - 1, Math.ceil(hits[hits.length - 1].t)) : pts.length - 1;
+      const heavy = boxes.filter(id => (S.byId.get(id) || {}).kind === 'heavy_crate').length;
+      seconds = Math.round(lenM / HERO_MS + (boxes.length - heavy) * 0.5 + heavy * 1.2 + (r.backS || 0));
+      lenM = Math.round(lenM);
+    }
+    const half = (G.teams[r.side] || {}).name || '';
+    const heavy = boxes.filter(id => (S.byId.get(id) || {}).kind === 'heavy_crate').length;
+    const title = `${(G.lanes[r.lane] || {}).name || ''} ${runWord(r)}${half ? ', ' + half + ' half' : ''}: about ${seconds} s, ${boxes.length} boxes${heavy ? ' (' + heavy + ' heavy: melee them)' : ''}, ${lenM} m off the lane${r.zip ? ', then zip back along the lane' : r.back && r.back.length ? ', then walk back along the lane' : ''}.${r.upFrom > 180 ? ' All its boxes are up from ' + E.fmt(r.upFrom) + '.' : ''} Solid: way out. Dots: way back. Numbers: breaking order.`;
+    return { id: r.id, lane: r.lane, side: r.side, pts, ret, boxes, back: r.back, zip: r.zip, moves: r.custom ? r.moves || [] : r.moves, laneZ: r.laneZ, seconds, lenM, title };
+  }
+  function drawRoutesNow() {
+    view.setRoutes(allRoutes().filter(routeOn).map(routeView), rtEdit);
+    view.layers.routes.setAttribute('opacity', RT.opacity);
+  }
+  function saveRoutes() { saveOverrides(); saveSettings(); }
+  function laneOf(u, v) {
+    let best = null;
+    for (const l of DLB_MAP.lanes) { const p = view.projectToLane(l.key, u, v); if (!best || p.d < best.d) best = { key: l.key, s: p.s }; }
+    return best;
+  }
+  function newRouteId() { return 'my-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+  // Fewer points to edit: keep corners that matter (Douglas-Peucker, ~0.8 m), every box stop and the way-back point.
+  function thinPoints(pts, keep) {
+    const tol = 0.8 / MPU();
+    const mark = new Array(pts.length).fill(false);
+    mark[0] = mark[pts.length - 1] = true;
+    for (const k of keep) if (k >= 0 && k < pts.length) mark[k] = true;
+    const dp = (i, j) => {
+      let best = -1, bd = tol;
+      const [ax, ay] = pts[i], [bx, by] = pts[j];
+      const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1e-12;
+      for (let k = i + 1; k < j; k++) {
+        const d = Math.abs((pts[k][0] - ax) * dy - (pts[k][1] - ay) * dx) / L;
+        if (d > bd) { bd = d; best = k; }
+      }
+      if (best > 0) { mark[best] = true; dp(i, best); dp(best, j); }
+    };
+    // simplify between consecutive kept points
+    const fixed = mark.map((m, i) => m ? i : -1).filter(i => i >= 0);
+    for (let n = 0; n + 1 < fixed.length; n++) dp(fixed[n], fixed[n + 1]);
+    const map = [], out = [];
+    pts.forEach((p, i) => { if (mark[i]) { map[i] = out.length; out.push(p.slice()); } });
+    return { pts: out, map };
+  }
+  function editCopy(r) {
+    const near = id => { const m = S.byId.get(id); let bi = -1, bd = 1e9; r.pts.forEach((p, i) => { const d = Math.hypot(p[0] - m.u, p[1] - m.v); if (d < bd) { bd = d; bi = i; } }); return bi; };
+    const thin = thinPoints(r.pts, [...r.boxes.filter(id => S.byId.has(id)).map(near), r.ret]);
+    const copy = { id: newRouteId(), custom: true, name: runWord(r) + ' (mine)', lane: r.lane, side: r.side, pts: thin.pts, ret: thin.map[r.ret] ?? null,
+      back: r.back, zip: r.zip, backS: r.custom ? r.backS : Math.max(0, (r.seconds || 0) - Math.round((r.lengthM || 0) / HERO_MS) - r.boxes.length * 0.5), laneZ: r.laneZ, from: r.id };
+    S.overrides.routes.push(copy);
+    if (!r.custom) RT.off[r.id] = true; // hide the preset so you see your copy
+    startEdit(copy.id);
+  }
+  function startEdit(id) {
+    rtEdit = id; rtUndo = [];
+    setSide('right', { tab: 'routes', collapsed: false });
+    saveRoutes(); drawRoutesNow(); renderRoutesTab();
+    const r = routeById(id);
+    if (r && r.pts.length > 1) view.routeZoom(r);
+    toast('Editing ' + (r.name || 'route'), 'Drag points · + adds one · click the map to extend · right-click a point for more');
+  }
+  function endEdit() {
+    const r = routeById(rtEdit);
+    if (r && r.pts.length < 2) S.overrides.routes = S.overrides.routes.filter(x => x !== r);
+    rtEdit = null; rtUndo = [];
+    saveRoutes(); drawRoutesNow(); renderRoutesTab();
+  }
+  function editing() { return rtEdit ? routeById(rtEdit) : null; }
+  function pushUndo(r) { rtUndo.push(JSON.stringify({ pts: r.pts, ret: r.ret })); if (rtUndo.length > 100) rtUndo.shift(); }
+  function snapToBox(u, v) {
+    const lim = 7 * view.iconK() / 1000;
+    let best = null;
+    for (const m of S.markers) {
+      if (m.kind !== 'crate' && m.kind !== 'heavy_crate' && m.kind !== 'buff_box') continue;
+      const d = Math.hypot(m.u - u, m.v - v);
+      if (d < lim && (!best || d < best.d)) best = { d, m };
+    }
+    return best ? [best.m.u, best.m.v, best.m.z ?? null] : [u, v, null];
+  }
+  let rtDragStart = false;
+  function routePointMove(i, u, v, final) {
+    const r = editing();
+    if (!r) return;
+    if (!rtDragStart) { pushUndo(r); rtDragStart = true; }
+    r.pts[i] = snapToBox(u, v);
+    drawRoutesNow();
+    if (final) { rtDragStart = false; saveRoutes(); renderRoutesTab(); }
+  }
+  function routePointInsert(i, u, v) {
+    const r = editing();
+    if (!r) return;
+    pushUndo(r);
+    r.pts.splice(i, 0, snapToBox(u, v));
+    if (r.ret != null && r.ret >= i) r.ret++;
+    saveRoutes(); drawRoutesNow(); renderRoutesTab();
+  }
+  function routeAppend(u, v) {
+    const r = editing();
+    if (!r) return false;
+    pushUndo(r);
+    r.pts.push(snapToBox(u, v));
+    if (r.pts.length === 1) { const l = laneOf(u, v); r.lane = l.key; r.side = l.s < 0.5 ? 'amber' : 'sapphire'; }
+    saveRoutes(); drawRoutesNow(); renderRoutesTab();
+    return true;
+  }
+  function routePointMenu(i, evt) {
+    const r = editing();
+    if (!r) return;
+    openPop(evt, `<h4>Point ${i + 1}</h4><div class="acts"><button data-a="ret" class="primary">Way back starts here</button><button data-a="auto">Way back: automatic</button><button data-a="del">Delete point</button></div>`, pop => {
+      pop.querySelector('[data-a=ret]').onclick = () => { pushUndo(r); r.ret = i; closePop(); saveRoutes(); drawRoutesNow(); renderRoutesTab(); };
+      pop.querySelector('[data-a=auto]').onclick = () => { pushUndo(r); r.ret = null; closePop(); saveRoutes(); drawRoutesNow(); renderRoutesTab(); };
+      pop.querySelector('[data-a=del]').onclick = () => {
+        pushUndo(r); r.pts.splice(i, 1);
+        if (r.ret != null) r.ret = r.ret > i ? r.ret - 1 : r.ret === i ? null : r.ret;
+        closePop(); saveRoutes(); drawRoutesNow(); renderRoutesTab();
+      };
+    });
+  }
+  function undoRoute() {
+    const r = editing();
+    if (!r || !rtUndo.length) return;
+    Object.assign(r, JSON.parse(rtUndo.pop()));
+    saveRoutes(); drawRoutesNow(); renderRoutesTab();
+  }
+
+  function renderRoutesTab() {
+    const box = document.querySelector('#routesPane');
+    if (!box) return;
+    const G = S.game;
+    const chip = (attr, key, on, label, n) => `<button class="rt-chip${on ? ' on' : ''}" ${attr}="${key}">${esc(label)}${n != null ? ` <small>${n}</small>` : ''}</button>`;
+    const counts = k => allRoutes().filter(r => setOf(r) === k).length;
+    const ed = editing();
+    let edHtml = '';
+    if (ed) {
+      const v = routeView(ed);
+      edHtml = `<div class="rt-edit"><label>Name<input id="rtName" value="${esc(ed.name || '')}"></label>
+        <div class="rt-stats"><b>${v.seconds} s</b> · ${v.boxes.length} boxes · ${v.lenM} m · ${v.pts.length} points</div>
+        <p class="hint">Drag a point (it snaps onto a box). Click + to add a point between two. Click the map to add one at the end. Right-click a point to delete it or start the way back there. Ctrl+Z undoes.</p>
+        <div class="btnrow"><button class="btn primary" id="rtDone">Done</button><button class="btn" id="rtUndo" ${rtUndo.length ? '' : 'disabled'}>Undo</button><button class="btn" id="rtRev">Reverse</button><button class="btn danger" id="rtDel">Delete</button></div></div>`;
+    }
+    const lanesHtml = Object.entries(G.lanes).map(([k, l]) => {
+      if (RT.lanes[k] === false) return '';
+      const rs = allRoutes().filter(r => r.lane === k && RT.sets[setOf(r)] !== false && (RT.side === 'all' || r.side === RT.side));
+      if (!rs.length) return '';
+      const halves = ['amber', 'sapphire'].map(side => {
+        const list = rs.filter(r => r.side === side);
+        if (!list.length) return '';
+        return `<div class="rt-half">${esc(G.teams[side].name)} half</div>` + list.map(r => {
+          const v = routeView(r);
+          return `<div class="rt-item${r.id === rtEdit ? ' editing' : ''}" data-id="${esc(r.id)}"><input type="checkbox" ${routeOn(r) ? 'checked' : ''} aria-label="Show ${esc(runWord(r))}">
+            <span class="sw" style="background:${l.color}"></span><span class="nm">${esc(runWord(r))}${r.custom ? '' : r.set === 'long' ? '' : ''}<small>${v.seconds} s · ${v.boxes.length} boxes${r.zip ? ' · zip back' : ''}</small></span>
+            <button data-a="zoom" title="Show on the map">⌖</button><button data-a="edit" title="${r.custom ? 'Edit' : 'Copy into My routes and edit'}">✎</button>${r.custom ? '<button data-a="del" title="Delete">✕</button>' : ''}</div>`;
+        }).join('');
+      }).join('');
+      return `<details class="rt-lane" open><summary><span class="sw" style="background:${l.color}"></span>${esc(l.name)} <small>${rs.length}</small></summary>${halves}</details>`;
+    }).join('');
+    box.innerHTML = `${edHtml}
+      <div class="rt-group"><div class="rt-lab">Show</div>${['lane', 'long', 'mine'].map(k => chip('data-set', k, RT.sets[k] !== false, setLabel(k), counts(k))).join('')}</div>
+      <div class="rt-group"><div class="rt-lab">Lanes</div>${Object.entries(G.lanes).map(([k, l]) => chip('data-lane', k, RT.lanes[k] !== false, l.name)).join('')}</div>
+      <div class="rt-group"><div class="rt-lab">Half</div>${[['all', 'Both'], ['amber', G.teams.amber.name], ['sapphire', G.teams.sapphire.name]].map(([k, n]) => chip('data-side', k, RT.side === k, n)).join('')}</div>
+      <label class="field">Route opacity <b id="rtOpV">${Math.round(RT.opacity * 100)}%</b><input class="range" type="range" id="rtOp" min="0.1" max="1" step="0.05" value="${RT.opacity}"></label>
+      <div class="btnrow"><button class="btn primary" id="rtNew">New route</button><button class="btn" id="rtAll">All on</button><button class="btn" id="rtNone">All off</button></div>
+      <p class="hint">Lane runs: 20–40 s between waves. Long runs: 40–70 s, further out (roofs, the next block). Timed at ${HERO_MS} m/s, a typical hero without sprint. <b>Solid</b> is the way out, <b>dots</b> the way back, <b>dashes</b> along the lane the walk or zipline back to where you left. Light outline: above the lane. Dark: below it.</p>
+      ${lanesHtml || '<p class="muted">Nothing to show: turn on a set, a lane or a half above.</p>'}`;
+    const redraw = () => { saveRoutes(); drawRoutesNow(); renderRoutesTab(); };
+    const clearGroupOverrides = pred => { for (const r of allRoutes()) if (pred(r)) { delete RT.off[r.id]; delete RT.onIds[r.id]; } };
+    box.querySelectorAll('[data-set]').forEach(b => b.onclick = () => { const k = b.dataset.set; RT.sets[k] = RT.sets[k] === false; clearGroupOverrides(r => setOf(r) === k); redraw(); });
+    box.querySelectorAll('[data-lane]').forEach(b => b.onclick = () => { const k = b.dataset.lane; RT.lanes[k] = RT.lanes[k] === false; clearGroupOverrides(r => r.lane === k); redraw(); });
+    box.querySelectorAll('[data-side]').forEach(b => b.onclick = () => { RT.side = b.dataset.side; redraw(); });
+    box.querySelector('#rtOp').oninput = e => { RT.opacity = +e.target.value; box.querySelector('#rtOpV').textContent = Math.round(RT.opacity * 100) + '%'; saveSettings(); view.layers.routes.setAttribute('opacity', RT.opacity); };
+    box.querySelector('#rtNew').onclick = () => {
+      const r = { id: newRouteId(), custom: true, name: 'My route ' + (S.overrides.routes.length + 1), lane: 'york', side: 'amber', pts: [], ret: null };
+      S.overrides.routes.push(r);
+      RT.sets.mine = true;
+      startEdit(r.id);
+      toast('New route', 'Click the map to place points, starting on the lane');
+    };
+    box.querySelector('#rtAll').onclick = () => { RT.off = {}; RT.onIds = {}; for (const r of allRoutes()) if (RT.sets[setOf(r)] === false || RT.lanes[r.lane] === false) RT.onIds[r.id] = true; redraw(); };
+    box.querySelector('#rtNone').onclick = () => { RT.onIds = {}; for (const r of allRoutes()) RT.off[r.id] = true; redraw(); };
+    box.querySelectorAll('.rt-item').forEach(row => {
+      const id = row.dataset.id, r = routeById(id);
+      row.addEventListener('mouseenter', () => view.focusRoute(id));
+      row.addEventListener('mouseleave', () => view.focusRoute(null));
+      row.querySelector('input').onchange = e => {
+        delete RT.off[id]; delete RT.onIds[id];
+        const groupOn = RT.sets[setOf(r)] !== false && RT.lanes[r.lane] !== false && (RT.side === 'all' || r.side === RT.side);
+        if (e.target.checked && !groupOn) RT.onIds[id] = true;
+        if (!e.target.checked && groupOn) RT.off[id] = true;
+        saveRoutes(); drawRoutesNow();
+      };
+      row.querySelector('[data-a=zoom]').onclick = () => { if (!routeOn(r)) { delete RT.off[id]; RT.onIds[id] = true; redraw(); } if (r.pts.length > 1) view.routeZoom(r); };
+      row.querySelector('[data-a=edit]').onclick = () => r.custom ? startEdit(id) : editCopy(r);
+      const del = row.querySelector('[data-a=del]');
+      if (del) del.onclick = () => { if (!confirm('Delete "' + (r.name || 'this route') + '"?')) return; S.overrides.routes = S.overrides.routes.filter(x => x.id !== id); if (rtEdit === id) rtEdit = null; if (r.from) delete RT.off[r.from]; redraw(); };
+    });
+    if (ed) {
+      box.querySelector('#rtName').onchange = e => { ed.name = e.target.value; saveRoutes(); renderRoutesTab(); };
+      box.querySelector('#rtDone').onclick = endEdit;
+      box.querySelector('#rtUndo').onclick = undoRoute;
+      box.querySelector('#rtRev').onclick = () => { pushUndo(ed); ed.pts.reverse(); ed.ret = null; ed.back = null; ed.zip = false; ed.backS = 0; redraw(); };
+      box.querySelector('#rtDel').onclick = () => { if (!confirm('Delete "' + (ed.name || 'this route') + '"?')) return; S.overrides.routes = S.overrides.routes.filter(x => x !== ed); if (ed.from) delete RT.off[ed.from]; rtEdit = null; redraw(); };
+    }
   }
 
   // ---------- heroes UI ----------
@@ -1172,12 +1427,7 @@
       <h3>Boxes</h3>
       <label class="field">Box brightness <b id="lyBoxV">${Math.round(S.settings.boxLevel * 100)}%</b>
         <input class="range" type="range" id="lyBox" min="0.2" max="4" step="0.1" value="${S.settings.boxLevel}"></label>
-      ${window.DLB_ROUTES ? `<label class="chk"><input type="checkbox" data-s="routes" ${ss.routes ? 'checked' : ''}> Box routes from lane <small>${DLB_ROUTES.routes.length} loops</small></label>
-      <label class="field">Route opacity <b id="lyRouteV">${Math.round(S.settings.routeOpacity * 100)}%</b>
-        <input class="range" type="range" id="lyRoute" min="0.1" max="1" step="0.05" value="${S.settings.routeOpacity}"></label>
-      <div class="row2"><label>Lane<select id="lyRLane"><option value="all">All lanes</option>${Object.entries(S.game.lanes).map(([k, l]) => `<option value="${k}" ${S.settings.routeLane === k ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></label>
-      <label>Half<select id="lyRSide"><option value="all">Both halves</option>${Object.entries(S.game.teams).map(([k, t]) => `<option value="${k}" ${S.settings.routeSide === k ? 'selected' : ''}>${esc(t.name)} half</option>`).join('')}</select></label></div>
-      <p class="hint">Runs of about ${DLB_ROUTES.source.rules.minS}–${DLB_ROUTES.source.rules.maxS} s to do between waves, timed at ${DLB_ROUTES.source.rules.heroSpeed} m/s (a typical hero, no sprint). Leave the lane at the dot, break the boxes in number order, rejoin at the arrow. Thick-ringed numbers are heavy crates: melee them. Only boxes that are up during laning are used. Walked on the game's own navigation mesh, so they use doors and stairs and keep to the right floor. Solid: lane height. Dashed: up a floor. Dotted: below the street. Chevrons: jump up or drop down. Hover a run to focus it.</p>` : ''}
+      <div class="btnrow"><button class="btn" id="lyRoutes">Box routes… (Routes tab)</button></div>
       <div class="btnrow"><button class="btn" data-preset="clean">Clean (objectives and camps)</button><button class="btn" data-preset="all">Everything</button></div>`);
     d.querySelectorAll('[data-k]').forEach(c => c.onchange = () => { sh[c.dataset.k] = c.checked; saveSettings(); tick(true); });
     d.querySelectorAll('[data-s]').forEach(c => c.onchange = () => { ss[c.dataset.s] = c.checked; saveSettings(); applyStatic(); });
@@ -1190,17 +1440,7 @@
       S.settings.planLevel = +e.target.value; d.querySelector('#lyPlanV').textContent = Math.round(S.settings.planLevel * 100) + '%';
       saveSettings(); applyStatic();
     };
-    const rl = d.querySelector('#lyRLane'), rs = d.querySelector('#lyRSide');
-    if (rl) {
-      if (S.settings.routeLane) rl.value = S.settings.routeLane;
-      if (S.settings.routeSide) rs.value = S.settings.routeSide;
-      rl.onchange = rs.onchange = () => { S.settings.routeLane = rl.value; S.settings.routeSide = rs.value; saveSettings(); applyStatic(); };
-    }
-    const ro = d.querySelector('#lyRoute');
-    if (ro) ro.oninput = e => {
-      S.settings.routeOpacity = +e.target.value; d.querySelector('#lyRouteV').textContent = Math.round(S.settings.routeOpacity * 100) + '%';
-      saveSettings(); applyStatic();
-    };
+    d.querySelector('#lyRoutes').onclick = () => { d.close(); setSide('right', { tab: 'routes', collapsed: false }); };
     d.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
       const all = b.dataset.preset === 'all';
       for (const k of LAYER_KINDS) sh[k] = all || !['crate', 'buff_box', 'rope', 'bell', 'snack', 'vent'].includes(k);
@@ -1213,7 +1453,6 @@
     Ls.roads.style.display = ss.lanes ? '' : 'none';
     Ls.zips.style.display = ss.zips ? '' : 'none';
     Ls.tele.style.display = ss.tele ? '' : 'none';
-    Ls.routes.style.display = ss.routes ? '' : 'none';
     const plan = Ls.bg.querySelector('.cityplan');
     if (plan) {
       plan.style.display = ss.plan === false ? 'none' : '';
@@ -1222,8 +1461,7 @@
       plan.style.opacity = Math.min(1, k);
       plan.style.filter = k > 1 ? `brightness(${k})` : '';
     }
-    Ls.routes.setAttribute('opacity', S.settings.routeOpacity);
-    view.setRouteFilter({ lane: S.settings.routeLane || 'all', side: S.settings.routeSide || 'all' });
+    drawRoutesNow();
     view.setBoxLevel(S.settings.boxLevel);
     document.body.classList.toggle('hide-under', !ss.under);
   }
@@ -1270,11 +1508,13 @@
         <li>Right-click the map to ping. Press <b>Draw</b> to sketch. Scroll to zoom, drag empty space to pan, <b>Flip</b> to put the other base at the bottom.</li>
       </ul></details>
 
-      <details class="help"><summary>6. Boxes and box routes</summary>
+      <details class="help"><summary>6. Box routes: presets and your own</summary>
       <ul class="help">
-        <li><b>Layers → Boxes</b>: make every crate and buff container dimmer or brighter, and turn on <b>Box routes</b>.</li>
-        <li>A route is a 20–40 s run between waves: leave the lane at the dot, break the boxes in number order, rejoin at the arrow. Thick-ringed numbers are heavy crates (melee them). Solid is lane height, dashed is up a floor, dotted is below the street, and chevrons mark a jump up or a drop.</li>
-        <li>Too busy? Pick one lane and your half under <b>Layers → Boxes</b>, and hover a route to fade the rest.</li>
+        <li>Open the <b>Routes</b> tab on the right. <b>Lane runs</b> are 20–40 s runs between waves. <b>Long runs</b> are 40–70 s and reach further (roofs, the next block over). Turn sets, lanes and halves on or off with the chips, tick single runs on or off in the list, and set the opacity. Runs may overlap.</li>
+        <li>On the map: leave the lane at the dot, break the boxes in number order (thick rings are heavy crates: melee them), and come back to the lane at the arrow. <b>Solid</b> is the way out, <b>dots</b> the way back, and <b>dashes along the lane</b> the walk or zipline back to where you left. A light outline means above the lane (roofs, upper floors), a dark one below the street. Chevrons mark a jump up or a drop.</li>
+        <li>The presets are efficient lines worked out from the game's navigation data, timed at 7.2 m/s (a typical hero without sprint) and riding ziplines (21 m/s, 18 on Broadway) when that's quicker. Use them as they are, or as a starting point.</li>
+        <li><b>Edit one:</b> press ✎ on a run. A copy lands in <b>My routes</b> (the preset hides). Drag a point (it snaps onto a box), press + between two points to add one, click the map to add one at the end, right-click a point to delete it or to start the way back there. Ctrl+Z undoes; Esc or <b>Done</b> finishes. <b>New route</b> starts an empty one: click the map from the lane outwards. Time and boxes update as you go.</li>
+        <li><b>Layers → Boxes</b> makes every crate and buff container brighter or dimmer.</li>
       </ul></details>
 
       <details class="help"><summary>7. Lane states: defensive, fast push, freeze</summary>
@@ -1661,8 +1901,12 @@
     markerClick,
     markerDragMove,
     markerDragEnd,
+    routePointMove,
+    routePointInsert,
+    routePointMenu,
     markerMoved(id, u, v) { editMarker(id, { u, v }); },
     backgroundClick(u, v, e) {
+      if (rtEdit && !S.god) { routeAppend(u, v); return; }
       S.selected = null; S.selHero = -1; renderInspector(); drawHeroes();
       // A click on (or right next to) a lane opens that lane's editor.
       let best = null;
@@ -1753,6 +1997,8 @@
   document.addEventListener('keydown', e => {
     if (e.target.matches('input, select, textarea') || document.querySelector('dialog[open]')) return;
     const k = e.key;
+    if (rtEdit && (e.ctrlKey || e.metaKey) && (k === 'z' || k === 'Z')) { e.preventDefault(); undoRoute(); return; }
+    if (rtEdit && (k === 'Escape' || k === 'Enter')) { closePop(); endEdit(); return; }
     if (k === ' ') { e.preventDefault(); $('#btnPlay').click(); }
     else if (k === 'ArrowLeft') seek(clockT() - (e.shiftKey ? 10 : 1));
     else if (k === 'ArrowRight') seek(clockT() + (e.shiftKey ? 10 : 1));

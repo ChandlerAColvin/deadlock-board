@@ -143,8 +143,14 @@
       }
       // City plan drawn from the game's navigation mesh (tools/render_map.py): streets, buildings and roofs at true
       // scale. It lines up with the markers exactly (same world-to-map scale), and flips with the board.
-      const plan = el('image', { href: 'assets/map-base.png', x: 0, y: 0, width: 1000, height: 1000, class: 'cityplan', preserveAspectRatio: 'none', transform: flip ? 'rotate(180 500 500)' : '' }, L.bg);
-      plan.style.imageRendering = 'auto';
+      // Vector shapes (data/city-plan.js), so borders stay sharp at any zoom.
+      const P = window.DLB_PLAN;
+      if (P) {
+        const plan = el('g', { class: 'cityplan', transform: flip ? 'rotate(180 500 500)' : '' }, L.bg);
+        for (const name of ['city', 'low', 'building', 'raised', 'high']) {
+          if (P.layers[name]) el('path', { d: P.layers[name], class: 'cp-' + name, 'fill-rule': 'evenodd' }, plan);
+        }
+      }
       // Soft colour washes so districts read at a glance (park green, docks water, team bases).
       const TINT = { 'Central Park': '#2f9e57', Docks: '#2a6f9e', 'Haunted Lot': '#7a4bb5', Chinatown: '#b53a3a', Theater: '#a8325e', Plaza: '#5a7da8',
         Campus: '#8a6a3a', Factory: '#a8552a', 'Stock Exchange': '#a8902a', 'Times Square': '#2aa8a8', 'Hidden King': '#f0a63c', Archmother: '#5b93f0',
@@ -191,74 +197,91 @@
     // the lane, the arrow where you rejoin it.
     const ROUTE_BAND = 96; // units (2.4 m) above or below the lane before a stretch counts as another floor
     let routeEnds = [];
+    // Box routes. The UI hands over the runs to show (presets and the user's own) with view.setRoutes(). A run is
+    // drawn solid on the way out (lane -> boxes), as a tight dotted line on the way back to the lane, and as a dashed
+    // line along the lane where you walk or zip back to where you left. A light casing means above the lane (roofs,
+    // upper floors), a dark one below the street. Numbers sit on the boxes in breaking order.
+    let routeList = [], routeEdit = null;
+    view.setRoutes = function (list, editId) { routeList = list || []; routeEdit = editId || null; drawRoutes(); };
     function drawRoutes() {
       L.routes.innerHTML = '';
-      routeEnds = [];
-      const R = window.DLB_ROUTES;
-      if (!R) return;
+      routeEnds = routeEnds.filter(r => !r.route);
       const G = GAME(), mpu = G.metersPerWorldUnit;
       const pos = new Map(api.markers().map(m => [m.id, m]));
-      for (const r of R.routes) {
-        const color = (G.lanes[r.lane] || {}).color || '#fff';
-        const g = el('g', { class: 'route', 'data-route': r.id, 'data-lane': r.lane, 'data-side': r.side }, L.routes);
-        const band = z => z - r.laneZ > ROUTE_BAND ? 1 : z - r.laneZ < -ROUTE_BAND ? -1 : 0;
+      const line = pts => 'M' + pts.map(p => X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join('L');
+      for (const r of routeList) {
+        const color = r.color || (G.lanes[r.lane] || {}).color || '#fff';
+        const editing = r.id === routeEdit;
+        const g = el('g', { class: 'route' + (editing ? ' editing' : ''), 'data-route': r.id }, L.routes);
+        if (!r.pts || r.pts.length < 2) { if (editing) drawHandles(r, g, color); continue; }
+        const ret = Math.max(0, Math.min(r.pts.length - 1, r.ret ?? r.pts.length - 1));
+        const base = r.laneZ ?? r.pts[0][2] ?? 0;
+        const band = z => z == null ? 0 : z - base > ROUTE_BAND ? 1 : z - base < -ROUTE_BAND ? -1 : 0;
+        // Casing by height, in runs of the same band.
         let run = [r.pts[0]], cur = band(r.pts[0][2]);
-        const flush = () => {
-          if (run.length < 2) return;
-          const d = 'M' + run.map(p => X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join('L');
-          el('path', { d, class: 'route-under', fill: 'none' }, g);
-          el('path', { d, class: 'route-line' + (cur > 0 ? ' up' : cur < 0 ? ' down' : ''), fill: 'none', stroke: color }, g);
-        };
-        for (let i = 1; i < r.pts.length; i++) {
-          const p = r.pts[i], b = band(p[2]);
-          run.push(p);
-          if (b !== cur) { flush(); run = [p]; cur = b; }
-        }
-        flush();
-        // Jump-ups and drops where the navmesh links two floors at different heights: a chevron on the spot.
+        const flushCase = () => { if (run.length > 1) el('path', { d: line(run), class: 'route-under' + (cur > 0 ? ' up' : cur < 0 ? ' down' : ''), fill: 'none' }, g); };
+        for (let i = 1; i < r.pts.length; i++) { const b = band(r.pts[i][2]); run.push(r.pts[i]); if (b !== cur) { flushCase(); run = [r.pts[i]]; cur = b; } }
+        flushCase();
+        if (r.back && r.back.length > 1) el('path', { d: line(r.back), class: 'route-back' + (r.zip ? ' zip' : ''), fill: 'none', stroke: color }, g);
+        el('path', { d: line(r.pts.slice(0, ret + 1)), class: 'route-line out', fill: 'none', stroke: color }, g);
+        if (ret < r.pts.length - 1) el('path', { d: line(r.pts.slice(ret)), class: 'route-line ret', fill: 'none', stroke: color }, g);
         for (const [u, v, dz] of r.moves || []) {
           const mv = el('path', { d: dz > 0 ? 'M-3.5,2L0,-2L3.5,2' : 'M-3.5,-2L0,2L3.5,-2', class: 'route-move', stroke: color }, g);
-          routeEnds.push({ e: mv, x: X(u), y: Y(v), rot: '' });
+          routeEnds.push({ route: 1, e: mv, x: X(u), y: Y(v), rot: '' });
         }
-        // Numbered stops on the boxes themselves, in running order, so a route visibly ends at real boxes.
-        r.boxes.forEach((id, k) => {
+        (r.boxes || []).forEach((id, k) => {
           const m = pos.get(id);
           if (!m) return;
           const stop = el('g', { class: 'route-stop' + (m.kind === 'heavy_crate' ? ' heavy' : '') }, g);
-          el('circle', { r: 5.2, fill: '#05080b', stroke: color, 'stroke-width': 1.6 }, stop);
-          const t = el('text', { y: 2.4, 'text-anchor': 'middle', 'font-size': 6.8, 'font-weight': 900, fill: color }, stop);
+          el('circle', { r: 6.6, fill: '#05080b', stroke: color, 'stroke-width': 1.8 }, stop);
+          const t = el('text', { y: 3, 'text-anchor': 'middle', 'font-size': 8.6, 'font-weight': 900, fill: color }, stop);
           t.textContent = k + 1;
-          routeEnds.push({ e: stop, x: X(m.u), y: Y(m.v), rot: '' });
+          routeEnds.push({ route: 1, e: stop, x: X(m.u), y: Y(m.v), rot: '' });
         });
-        // Leave the lane at the dot, rejoin at the arrow. These keep their size on screen like the icons do.
         const a = r.pts[0], z = r.pts[r.pts.length - 1], y = r.pts[r.pts.length - 2];
         const dot = el('circle', { r: 3.6, fill: color, stroke: '#05080b', 'stroke-width': 1.4 }, g);
-        routeEnds.push({ e: dot, x: X(a[0]), y: Y(a[1]), rot: '' });
+        routeEnds.push({ route: 1, e: dot, x: X(a[0]), y: Y(a[1]), rot: '' });
         const ang = Math.atan2(Y(z[1]) - Y(y[1]), X(z[0]) - X(y[0])) * 180 / Math.PI;
         const arrow = el('path', { d: 'M-5,-4.5L4,0L-5,4.5z', fill: color, stroke: '#05080b', 'stroke-width': 1.2 }, g);
-        routeEnds.push({ e: arrow, x: X(z[0]), y: Y(z[1]), rot: ` rotate(${ang.toFixed(0)})` });
-        const name = (G.lanes[r.lane] || {}).name || r.lane, half = (G.teams[r.side] || {}).name || r.side;
-        const heights = r.pts.map(p => p[2] - r.laneZ);
-        const up = Math.max(...heights), down = Math.min(...heights);
-        const ups = (r.moves || []).filter(m => m[2] > 0).length, downs = (r.moves || []).filter(m => m[2] < 0).length;
-        const lvl = (up > ROUTE_BAND ? ` Goes up to ${Math.round(up * mpu)} m above the lane.` : '') + (down < -ROUTE_BAND ? ` Goes down to ${Math.round(-down * mpu)} m below it.` : '') || ' Stays at lane height.';
-        const mv = (ups ? ` ${ups} jump-up${ups > 1 ? 's' : ''}.` : '') + (downs ? ` ${downs} drop${downs > 1 ? 's' : ''}.` : '');
-        const up5 = r.upFrom > 180 ? ` All its boxes are up from ${Math.floor(r.upFrom / 60)}:${String(r.upFrom % 60).padStart(2, '0')}.` : '';
-        el('title', {}, g).textContent = `${name} box run, ${half} half: about ${r.seconds} s, ${r.boxes.length} boxes${r.heavy ? ' (' + r.heavy + ' heavy: melee them)' : ''}, ${r.lengthM} m lane to lane.${lvl}${mv}${up5} Numbers are the order to break them.`;
-        g.addEventListener('mouseenter', () => { g.classList.add('hot'); L.routes.classList.add('focus'); });
-        g.addEventListener('mouseleave', () => { g.classList.remove('hot'); L.routes.classList.remove('focus'); });
+        routeEnds.push({ route: 1, e: arrow, x: X(z[0]), y: Y(z[1]), rot: ` rotate(${ang.toFixed(0)})` });
+        if (r.title) el('title', {}, g).textContent = r.title;
+        g.addEventListener('mouseenter', () => view.focusRoute(r.id));
+        g.addEventListener('mouseleave', () => view.focusRoute(null));
+        if (editing) drawHandles(r, g, color);
       }
-      view.setRouteFilter(routeFilter);
+      placeMarkers();
     }
-    // Which routes to show: { lane: 'all' | lane key, side: 'all' | 'amber' | 'sapphire' }.
-    let routeFilter = { lane: 'all', side: 'all' };
-    view.setRouteFilter = function (f) {
-      routeFilter = Object.assign({ lane: 'all', side: 'all' }, f || {});
-      L.routes.querySelectorAll('.route').forEach(g => {
-        const on = (routeFilter.lane === 'all' || g.dataset.lane === routeFilter.lane) && (routeFilter.side === 'all' || g.dataset.side === routeFilter.side);
-        g.style.display = on ? '' : 'none';
+    // Edit handles: a dot per point (drag it; it snaps onto boxes), a small + between points to add one, and a
+    // square on the point where the way back starts.
+    function drawHandles(r, g, color) {
+      const pts = r.pts || [];
+      pts.forEach((p, i) => {
+        if (i < pts.length - 1) {
+          const q = pts[i + 1];
+          const add = el('g', { class: 'rt-add', 'data-i': i + 1 }, g);
+          el('circle', { r: 4, fill: '#0b1117', stroke: color, 'stroke-width': 1.2, opacity: 0.9 }, add);
+          el('path', { d: 'M-2.2,0H2.2M0,-2.2V2.2', stroke: color, 'stroke-width': 1.4 }, add);
+          routeEnds.push({ route: 1, e: add, x: (X(p[0]) + X(q[0])) / 2, y: (Y(p[1]) + Y(q[1])) / 2, rot: '' });
+        }
+        const h = el('g', { class: 'rt-h' + (i === r.ret ? ' ret' : ''), 'data-i': i }, g);
+        if (i === r.ret) el('rect', { x: -5, y: -5, width: 10, height: 10, rx: 2, fill: '#fff', stroke: color, 'stroke-width': 2.2 }, h);
+        else el('circle', { r: 5, fill: '#fff', stroke: color, 'stroke-width': 2.2 }, h);
+        routeEnds.push({ route: 1, e: h, x: X(p[0]), y: Y(p[1]), rot: '' });
       });
+    }
+    view.focusRoute = function (id) {
+      L.routes.classList.toggle('focus', !!id);
+      L.routes.querySelectorAll('.route').forEach(g => g.classList.toggle('hot', g.dataset.route === id));
     };
+    view.routeZoom = function (r) {
+      const xs = r.pts.map(p => X(p[0])), ys = r.pts.map(p => Y(p[1]));
+      const pad = 40, x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad, y0 = Math.min(...ys) - pad, y1 = Math.max(...ys) + pad;
+      const size = Math.max(160, x1 - x0, y1 - y0);
+      vb = { x: (x0 + x1) / 2 - size / 2, y: (y0 + y1) / 2 - size / 2, w: size, h: size };
+      applyVB();
+    };
+    view.toUV = toUV;
+    view.X = X; view.Y = Y;
 
     function layerFor(kind) {
       if (OBJ.includes(kind) || kind === 'spawn') return L.obj;
@@ -291,7 +314,7 @@
     }
 
     function placeMarkers() {
-      const k = Math.min(1, iconK * 1.6).toFixed(3);
+      const k = iconK.toFixed(3);
       for (const r of routeEnds) r.e.setAttribute('transform', `translate(${r.x.toFixed(1)},${r.y.toFixed(1)}) scale(${k})${r.rot}`);
       for (const r of markerEls.values()) r.g.setAttribute('transform', `translate(${X(r.m.u).toFixed(1)},${Y(r.m.v).toFixed(1)}) scale(${iconK.toFixed(3)})`);
     }
@@ -534,7 +557,9 @@
     // ---------- zoom / pan ----------
     function applyVB() {
       svg.setAttribute('viewBox', `${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`);
-      const k = Math.pow(vb.w / 1000, 0.7);
+      // Icons keep about the same size on screen as you zoom (they get smaller relative to the map), so close up
+      // you can see exactly where each box is.
+      const k = Math.pow(vb.w / 1000, 0.95);
       if (Math.abs(k - iconK) > 0.01) {
         iconK = k;
         placeMarkers();
@@ -577,7 +602,10 @@
       const heroEl = e.target.closest('.hero');
       const frontEl = e.target.closest('.front');
       const mkEl = e.target.closest('.mk');
-      if (heroEl) drag = { type: 'hero', i: Number(heroEl.dataset.hero), start: p, moved: false };
+      const rtH = e.target.closest('.rt-h'), rtAdd = e.target.closest('.rt-add');
+      if (rtH) drag = { type: 'rtpt', i: Number(rtH.dataset.i), start: p, moved: false };
+      else if (rtAdd) drag = { type: 'rtadd', i: Number(rtAdd.dataset.i), start: p, moved: false };
+      else if (heroEl) drag = { type: 'hero', i: Number(heroEl.dataset.hero), start: p, moved: false };
       else if (frontEl) drag = { type: 'front', lane: frontEl.dataset.front, start: p, moved: false };
       else if (mkEl) drag = { type: 'marker', id: mkEl.dataset.id, start: p, moved: false, god: api.isGod() };
       else if (api.isDraw()) drag = { type: 'draw', pts: [toUV(p.x, p.y)], start: p, moved: false, path: el('path', { fill: 'none', stroke: api.drawColor(), 'stroke-width': 3, 'stroke-linecap': 'round' }, L.draw) };
@@ -599,7 +627,8 @@
       if (Math.hypot(p.x - drag.start.x, p.y - drag.start.y) > 3 * (vb.w / 1000)) drag.moved = true;
       if (!drag.moved) return;
       const [u, v] = toUV(p.x, p.y);
-      if (drag.type === 'hero') api.moveHero(drag.i, u, v);
+      if (drag.type === 'rtpt') api.routePointMove(drag.i, u, v, false);
+      else if (drag.type === 'hero') api.moveHero(drag.i, u, v);
       else if (drag.type === 'front') api.moveFront(drag.lane, view.projectToLane(drag.lane, u, v).s);
       else if (drag.type === 'marker' && drag.god) {
         const r = markerEls.get(drag.id);
@@ -619,7 +648,9 @@
       svg.classList.remove('panning');
       const p = svgPoint(e);
       const [u, v] = toUV(p.x, p.y);
-      if (d.type === 'hero') { if (!d.moved) api.heroClick(d.i, e); else api.heroDropped(d.i); }
+      if (d.type === 'rtpt') { if (d.moved) api.routePointMove(d.i, u, v, true); }
+      else if (d.type === 'rtadd') api.routePointInsert(d.i, u, v);
+      else if (d.type === 'hero') { if (!d.moved) api.heroClick(d.i, e); else api.heroDropped(d.i); }
       else if (d.type === 'marker') {
         if (d.moved && d.god) { const r = markerEls.get(d.id); api.markerMoved(d.id, r.m.u, r.m.v); }
         else if (d.moved && api.markerDragEnd) api.markerDragEnd(d.id, e.clientX, e.clientY);
@@ -636,6 +667,8 @@
       e.preventDefault();
       const p = svgPoint(e);
       const [u, v] = toUV(p.x, p.y);
+      const rtH = e.target.closest('.rt-h');
+      if (rtH) { api.routePointMenu(Number(rtH.dataset.i), e); return; }
       const heroEl = e.target.closest('.hero');
       if (heroEl) { api.heroContext(Number(heroEl.dataset.hero), e); return; }
       api.contextMenu(u, v, e);

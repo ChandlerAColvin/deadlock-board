@@ -92,6 +92,7 @@
     <nav class="sidetabs" role="tablist" aria-label="Right side">
       <button class="collapse" title="Collapse this side" aria-label="Collapse right side">»</button>
       <button data-tab="board" role="tab" title="Match status, heroes and the selected thing">Match</button>
+      <button data-tab="routes" role="tab" title="Box routes: presets and your own, on/off, edit">Routes</button>
       <button data-tab="details" role="tab" title="Details you dragged here from the map">Details <span class="cnt"></span></button>
     </nav>
     <div class="tabpane" data-pane="board">
@@ -109,6 +110,7 @@
       <div id="inspect" class="muted">Click anything on the map.</div>
     </section>
     </div>
+    <div class="tabpane" data-pane="routes" hidden><div id="routesPane" class="routes-pane"></div></div>
     <div class="tabpane" data-pane="details" hidden><div class="pins"></div><p class="droptip">Drag anything from the map onto this side to keep its details here: camps, objectives, the urn, boxes.</p></div>
   </aside>
 </div>
@@ -124,6 +126,7 @@
 <script src="data/map-data.js"></script>
 <script src="data/extra-data.js"></script>
 <script src="data/game-ents.js"></script>
+<script src="data/city-plan.js"></script>
 <script src="data/box-routes.js"></script>
 <script src="app/engine.js"></script>
 <script src="app/audio.js"></script>
