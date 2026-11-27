@@ -196,12 +196,12 @@
       routeEnds = [];
       const R = window.DLB_ROUTES;
       if (!R) return;
-      const G = GAME();
+      const G = GAME(), mpu = G.metersPerWorldUnit;
+      const pos = new Map(api.markers().map(m => [m.id, m]));
       for (const r of R.routes) {
         const color = (G.lanes[r.lane] || {}).color || '#fff';
-        const g = el('g', { class: 'route', 'data-route': r.id }, L.routes);
+        const g = el('g', { class: 'route', 'data-route': r.id, 'data-lane': r.lane, 'data-side': r.side }, L.routes);
         const band = z => z - r.laneZ > ROUTE_BAND ? 1 : z - r.laneZ < -ROUTE_BAND ? -1 : 0;
-        let floors = 0;
         let run = [r.pts[0]], cur = band(r.pts[0][2]);
         const flush = () => {
           if (run.length < 2) return;
@@ -212,17 +212,26 @@
         for (let i = 1; i < r.pts.length; i++) {
           const p = r.pts[i], b = band(p[2]);
           run.push(p);
-          if (b !== cur) { flush(); run = [p]; cur = b; if (b !== 0) floors++; }
+          if (b !== cur) { flush(); run = [p]; cur = b; }
         }
         flush();
-        const a = r.pts[0], z = r.pts[r.pts.length - 1], y = r.pts[r.pts.length - 2];
-        // Jumps/mantles up and drops down (from the navmesh links): a small up or down chevron mid-step.
-        for (const [k, dz] of r.moves || []) {
-          const p = r.pts[k], q = r.pts[k + 1];
+        // Jump-ups and drops where the navmesh links two floors at different heights: a chevron on the spot.
+        for (const [u, v, dz] of r.moves || []) {
           const mv = el('path', { d: dz > 0 ? 'M-3.5,2L0,-2L3.5,2' : 'M-3.5,-2L0,2L3.5,-2', class: 'route-move', stroke: color }, g);
-          routeEnds.push({ e: mv, x: (X(p[0]) + X(q[0])) / 2, y: (Y(p[1]) + Y(q[1])) / 2, rot: '' });
+          routeEnds.push({ e: mv, x: X(u), y: Y(v), rot: '' });
         }
-        // The dot and arrow keep their size on screen like the icons do (see placeMarkers).
+        // Numbered stops on the boxes themselves, in running order, so a route visibly ends at real boxes.
+        r.boxes.forEach((id, k) => {
+          const m = pos.get(id);
+          if (!m) return;
+          const stop = el('g', { class: 'route-stop' + (m.kind === 'heavy_crate' ? ' heavy' : '') }, g);
+          el('circle', { r: 5.2, fill: '#05080b', stroke: color, 'stroke-width': 1.6 }, stop);
+          const t = el('text', { y: 2.4, 'text-anchor': 'middle', 'font-size': 6.8, 'font-weight': 900, fill: color }, stop);
+          t.textContent = k + 1;
+          routeEnds.push({ e: stop, x: X(m.u), y: Y(m.v), rot: '' });
+        });
+        // Leave the lane at the dot, rejoin at the arrow. These keep their size on screen like the icons do.
+        const a = r.pts[0], z = r.pts[r.pts.length - 1], y = r.pts[r.pts.length - 2];
         const dot = el('circle', { r: 3.6, fill: color, stroke: '#05080b', 'stroke-width': 1.4 }, g);
         routeEnds.push({ e: dot, x: X(a[0]), y: Y(a[1]), rot: '' });
         const ang = Math.atan2(Y(z[1]) - Y(y[1]), X(z[0]) - X(y[0])) * 180 / Math.PI;
@@ -231,22 +240,25 @@
         const name = (G.lanes[r.lane] || {}).name || r.lane, half = (G.teams[r.side] || {}).name || r.side;
         const heights = r.pts.map(p => p[2] - r.laneZ);
         const up = Math.max(...heights), down = Math.min(...heights);
-        const ups = (r.moves || []).filter(m => m[1] > 0), downs = (r.moves || []).filter(m => m[1] < 0);
-        const mvTxt = (ups.length ? ` Jump or mantle up ${ups.map(m => Math.round(m[1] * GAME().metersPerWorldUnit) + ' m').join(', ')}.` : '') +
-          (downs.length ? ` Drop down ${downs.map(m => Math.round(-m[1] * GAME().metersPerWorldUnit) + ' m').join(', ')}.` : '');
-        const lvl = up > ROUTE_BAND ? ` Goes up about ${Math.round(up * GAME().metersPerWorldUnit)} m.` : down < -ROUTE_BAND ? ` Goes down about ${Math.round(-down * GAME().metersPerWorldUnit)} m.` : ' Stays at lane height.';
-        el('title', {}, g).textContent = `${name} box run (${half} half): ${r.boxes.length} box${r.boxes.length > 1 ? 'es' : ''}${r.heavy ? ', ' + r.heavy + ' heavy' : ''}, ${r.lengthM} m lane to lane.${lvl}${mvTxt}`;
-        // Hovering a route rings the boxes it breaks.
-        g.addEventListener('mouseenter', () => {
-          g.classList.add('hot');
-          for (const id of r.boxes) {
-            const m = markerEls.get(id);
-            if (m) el('circle', { class: 'route-ring', cx: X(m.m.u), cy: Y(m.m.v), r: 8, stroke: color }, L.pings);
-          }
-        });
-        g.addEventListener('mouseleave', () => { g.classList.remove('hot'); L.pings.querySelectorAll('.route-ring').forEach(e => e.remove()); });
+        const ups = (r.moves || []).filter(m => m[2] > 0).length, downs = (r.moves || []).filter(m => m[2] < 0).length;
+        const lvl = (up > ROUTE_BAND ? ` Goes up to ${Math.round(up * mpu)} m above the lane.` : '') + (down < -ROUTE_BAND ? ` Goes down to ${Math.round(-down * mpu)} m below it.` : '') || ' Stays at lane height.';
+        const mv = (ups ? ` ${ups} jump-up${ups > 1 ? 's' : ''}.` : '') + (downs ? ` ${downs} drop${downs > 1 ? 's' : ''}.` : '');
+        const up5 = r.upFrom > 180 ? ` All its boxes are up from ${Math.floor(r.upFrom / 60)}:${String(r.upFrom % 60).padStart(2, '0')}.` : '';
+        el('title', {}, g).textContent = `${name} box run, ${half} half: about ${r.seconds} s, ${r.boxes.length} boxes${r.heavy ? ' (' + r.heavy + ' heavy: melee them)' : ''}, ${r.lengthM} m lane to lane.${lvl}${mv}${up5} Numbers are the order to break them.`;
+        g.addEventListener('mouseenter', () => { g.classList.add('hot'); L.routes.classList.add('focus'); });
+        g.addEventListener('mouseleave', () => { g.classList.remove('hot'); L.routes.classList.remove('focus'); });
       }
+      view.setRouteFilter(routeFilter);
     }
+    // Which routes to show: { lane: 'all' | lane key, side: 'all' | 'amber' | 'sapphire' }.
+    let routeFilter = { lane: 'all', side: 'all' };
+    view.setRouteFilter = function (f) {
+      routeFilter = Object.assign({ lane: 'all', side: 'all' }, f || {});
+      L.routes.querySelectorAll('.route').forEach(g => {
+        const on = (routeFilter.lane === 'all' || g.dataset.lane === routeFilter.lane) && (routeFilter.side === 'all' || g.dataset.side === routeFilter.side);
+        g.style.display = on ? '' : 'none';
+      });
+    };
 
     function layerFor(kind) {
       if (OBJ.includes(kind) || kind === 'spawn') return L.obj;

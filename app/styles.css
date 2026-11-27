@@ -79,6 +79,9 @@ body.hide-under .mk.under { display: none; }
 .route-line.up { stroke-dasharray: 7 4; }
 .route-line.down { stroke-dasharray: 1.5 4; }
 .route.hot .route-line { stroke-width: 3.6; }
+.L-routes.focus .route:not(.hot) { opacity: .12; }
+.route-stop text { pointer-events: none; }
+.route-stop.heavy circle { stroke-width: 2.6; }
 .route.hot .route-under { stroke-width: 7; }
 .route-move { fill: none; vector-effect: non-scaling-stroke; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; paint-order: stroke; filter: drop-shadow(0 0 1.5px #05080b) drop-shadow(0 0 1px #05080b); }
 .route-ring { fill: none; stroke-width: 2.2; pointer-events: none; }

@@ -5,8 +5,11 @@
   const AFTER_CLEAR = ['camp_small', 'camp_medium', 'camp_large', 'sinners', 'snack', 'crate', 'heavy_crate', 'buff_box'];
 
   // Board markers = generated map points + extra data (heavy crates, vents, camp names) + god mode edits.
-  function mergeMarkers(points, extra, ov, fixes) {
+  // gameEnts (data/game-ents.js, from the map's entity list) wins over the third-party extra data for boxes: whether a
+  // box is a heavy crate and which spawn group sets its timer. God mode edits still win over everything.
+  function mergeMarkers(points, extra, ov, fixes, gameEnts) {
     ov = ov || {};
+    const gb = (gameEnts && gameEnts.boxes) || {};
     fixes = fixes || {};
     const removed = new Set([...(ov.removed || []), ...(fixes.retired || [])]);
     const kindFix = fixes.kind || {};
@@ -16,7 +19,8 @@
     for (const p of points) {
       const [id, kind, u, v, z, team, lane, area, camp, side] = p;
       if (removed.has(id)) continue;
-      list.push(Object.assign({ id, kind: kindFix[id] || kind, u, v, z: z || 0, team, lane, area, camp, side }, ex[id] || {}, edits[id] || {}));
+      const box = gb[id] ? { kind: gb[id].heavy ? 'heavy_crate' : kind, spawnGroup: gb[id].g, first: undefined, respawn: undefined } : {};
+      list.push(Object.assign({ id, kind: kindFix[id] || kind, u, v, z: z || 0, team, lane, area, camp, side }, ex[id] || {}, box, edits[id] || {}));
     }
     for (const a of (extra && extra.added) || []) if (!removed.has(a.id)) list.push(Object.assign({ z: 0 }, a, edits[a.id] || {}));
     for (const a of ov.added || []) if (!removed.has(a.id)) list.push(Object.assign({}, a, edits[a.id] || {}));
@@ -162,7 +166,12 @@
       let first = base.first;
       let respawn = base.respawn;
       let ruleName = null;
-      if (m.kind === 'crate' || m.kind === 'buff_box') {
+      const groups = this.game.breakableGroups;
+      if (m.spawnGroup !== undefined && groups && groups[m.spawnGroup]) {
+        // The game's own timer for this box (its spawn group).
+        [first, respawn] = groups[m.spawnGroup];
+        if (m.spawnGroup > 0) ruleName = groups[m.spawnGroup][2];
+      } else if (m.kind === 'crate' || m.kind === 'buff_box') {
         const br = breakableRule(m, this.game.breakableRules);
         if (br) { first = br.first; respawn = br.respawn; ruleName = br.name; }
       }

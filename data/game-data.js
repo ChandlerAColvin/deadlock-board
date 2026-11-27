@@ -16,6 +16,7 @@ window.DLB_GAME = {
   },
 
   changelog: [
+    { date: '2026-11-27', note: 'Box timers and heavy crates now come from the game files (entity list + GenericData spawn groups): 78 heavy crates (was 74), and about 80 boxes had the wrong first spawn or respawn from the wiki place rules. Urn sites confirmed in the entity list.' },
     { date: '2026-11-27', note: 'Soul Urn: two sites by the side-lane bridges (June 30, 2026 rework). It spawns at one and is delivered to the other; the 4 older comeback pickup spots are gone. 250 souls + 70/min, walks off on its own after 3:00, decays from 45 s after pickup (deadlock.wiki/Soul_Urn).' },
     { date: '2026-11-27', note: 'Hero death timers: respawn curve 8 s to 5:00, 38 s at 20:00, 70 s at 30:00, 85 s at 40:00, cap 90 s, +10 s to troopers/objectives (deadlock.wiki/Death). Rejuvenator gives 3 revive tokens for 180 s.' },
     { date: '2026-11-27', note: 'Checked against POSHYPOP (Oct 25 data): all 36 healing bats and 40 camps line up; 74 heavy crates marked; 46 steam vents added. Healing bats heal 14% over 4 s, 3.5 m pickup. Haunt souls 43/71/189 per creature (+1.08%/min).' },
@@ -106,6 +107,16 @@ window.DLB_GAME = {
   // growing 1.08% per minute (GoldRewardBonusPercentPerMinute).
   haunts: { soulsByTier: { 1: 43, 2: 71, 3: 189 }, growthPctPerMin: 1.08 },
 
+  // Box timers straight from the game: GenericData m_BreakableSpawnTimeDesc, one row per breakable_spawn_group
+  // [first spawn, respawn, label]. Each box's group comes from the map's entity list (data/game-ents.js).
+  breakableGroups: [
+    [180, 180, 'Standard box'],
+    [300, 300, 'Spawn group 1: 5:00, every 5:00'],
+    [600, 180, 'Spawn group 2: 10:00, every 3:00'],
+    [300, 180, 'Spawn group 3: 5:00, every 3:00'],
+  ],
+
+  // Fallback for boxes the entity list doesn't cover (added in god mode). The wiki describes these by place.
   // Crate / buff container timing exceptions (deadlock.wiki/Crate, deadlock.wiki/Buff_Container).
   // The wiki describes these by place; the matches below are the closest marker groups. First match wins.
   breakableRules: [

@@ -46,7 +46,7 @@
   }
   function buildGame() { S.game = deepMerge(clone(DLB_GAME), S.overrides.rules); }
   function buildMarkers() {
-    const list = E.mergeMarkers(DLB_MAP.points, window.DLB_EXTRA, S.overrides, DLB_GAME.mapFixes);
+    const list = E.mergeMarkers(DLB_MAP.points, window.DLB_EXTRA, S.overrides, DLB_GAME.mapFixes, window.DLB_ENTS);
     S.markers = list;
     S.byId = new Map(list.map(m => [m.id, m]));
   }
@@ -1175,7 +1175,9 @@
       ${window.DLB_ROUTES ? `<label class="chk"><input type="checkbox" data-s="routes" ${ss.routes ? 'checked' : ''}> Box routes from lane <small>${DLB_ROUTES.routes.length} loops</small></label>
       <label class="field">Route opacity <b id="lyRouteV">${Math.round(S.settings.routeOpacity * 100)}%</b>
         <input class="range" type="range" id="lyRoute" min="0.1" max="1" step="0.05" value="${S.settings.routeOpacity}"></label>
-      <p class="hint">Short loops you can run between waves: leave the lane at the dot, break the boxes, rejoin at the arrow. Walked on the game's own navigation mesh, so they use doors and stairs and keep to the right floor. Solid: lane height. Dashed: up a floor. Dotted: below the street. Hover a route to ring its boxes.</p>` : ''}
+      <div class="row2"><label>Lane<select id="lyRLane"><option value="all">All lanes</option>${Object.entries(S.game.lanes).map(([k, l]) => `<option value="${k}" ${S.settings.routeLane === k ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></label>
+      <label>Half<select id="lyRSide"><option value="all">Both halves</option>${Object.entries(S.game.teams).map(([k, t]) => `<option value="${k}" ${S.settings.routeSide === k ? 'selected' : ''}>${esc(t.name)} half</option>`).join('')}</select></label></div>
+      <p class="hint">Runs of about ${DLB_ROUTES.source.rules.minS}–${DLB_ROUTES.source.rules.maxS} s to do between waves, timed at ${DLB_ROUTES.source.rules.heroSpeed} m/s (a typical hero, no sprint). Leave the lane at the dot, break the boxes in number order, rejoin at the arrow. Thick-ringed numbers are heavy crates: melee them. Only boxes that are up during laning are used. Walked on the game's own navigation mesh, so they use doors and stairs and keep to the right floor. Solid: lane height. Dashed: up a floor. Dotted: below the street. Chevrons: jump up or drop down. Hover a run to focus it.</p>` : ''}
       <div class="btnrow"><button class="btn" data-preset="clean">Clean (objectives and camps)</button><button class="btn" data-preset="all">Everything</button></div>`);
     d.querySelectorAll('[data-k]').forEach(c => c.onchange = () => { sh[c.dataset.k] = c.checked; saveSettings(); tick(true); });
     d.querySelectorAll('[data-s]').forEach(c => c.onchange = () => { ss[c.dataset.s] = c.checked; saveSettings(); applyStatic(); });
@@ -1188,6 +1190,12 @@
       S.settings.planLevel = +e.target.value; d.querySelector('#lyPlanV').textContent = Math.round(S.settings.planLevel * 100) + '%';
       saveSettings(); applyStatic();
     };
+    const rl = d.querySelector('#lyRLane'), rs = d.querySelector('#lyRSide');
+    if (rl) {
+      if (S.settings.routeLane) rl.value = S.settings.routeLane;
+      if (S.settings.routeSide) rs.value = S.settings.routeSide;
+      rl.onchange = rs.onchange = () => { S.settings.routeLane = rl.value; S.settings.routeSide = rs.value; saveSettings(); applyStatic(); };
+    }
     const ro = d.querySelector('#lyRoute');
     if (ro) ro.oninput = e => {
       S.settings.routeOpacity = +e.target.value; d.querySelector('#lyRouteV').textContent = Math.round(S.settings.routeOpacity * 100) + '%';
@@ -1215,6 +1223,7 @@
       plan.style.filter = k > 1 ? `brightness(${k})` : '';
     }
     Ls.routes.setAttribute('opacity', S.settings.routeOpacity);
+    view.setRouteFilter({ lane: S.settings.routeLane || 'all', side: S.settings.routeSide || 'all' });
     view.setBoxLevel(S.settings.boxLevel);
     document.body.classList.toggle('hide-under', !ss.under);
   }
@@ -1264,7 +1273,8 @@
       <details class="help"><summary>6. Boxes and box routes</summary>
       <ul class="help">
         <li><b>Layers → Boxes</b>: make every crate and buff container dimmer or brighter, and turn on <b>Box routes</b>.</li>
-        <li>A route is a short loop to run between waves: leave the lane at the dot, break the boxes, rejoin at the arrow. Solid is lane height, dashed is up a floor, dotted is below the street, and chevrons mark a jump up or a drop. Hover a route to ring its boxes.</li>
+        <li>A route is a 20–40 s run between waves: leave the lane at the dot, break the boxes in number order, rejoin at the arrow. Thick-ringed numbers are heavy crates (melee them). Solid is lane height, dashed is up a floor, dotted is below the street, and chevrons mark a jump up or a drop.</li>
+        <li>Too busy? Pick one lane and your half under <b>Layers → Boxes</b>, and hover a route to fade the rest.</li>
       </ul></details>
 
       <details class="help"><summary>7. Lane states: defensive, fast push, freeze</summary>
