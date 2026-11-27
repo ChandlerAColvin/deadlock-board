@@ -5,6 +5,15 @@
 <meta name="robots" content="noindex">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deadlock Board</title>
+<meta name="theme-color" content="#0b1117">
+<link rel="icon" href="assets/hidden-king.svg" type="image/svg+xml">
+<link rel="icon" href="assets/hidden-king-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="assets/hidden-king-192.png">
+<script>
+  // The app manifest makes the web version installable (Hidden King icon on the desktop). Browsers can't read it
+  // from a file:// page, so the local copy skips it.
+  if (location.protocol !== 'file:') document.write('<link rel="manifest" href="manifest.webmanifest">');
+</script>
 <link rel="stylesheet" href="app/styles.css">
 </head>
 <body>
@@ -18,7 +27,8 @@
     <button id="btnDraw" class="tb" title="Draw on the map (D). Right-click the map to ping.">Draw</button>
     <button id="btnLayers" class="tb" title="Show or hide map layers">Layers</button>
     <button id="btnSettings" class="tb" title="Alerts, sounds and options">Settings</button>
-    <button id="btnHelp" class="tb" title="How to use the board and lane states (H)">Help</button>
+    <button id="btnShare" class="tb share" title="Send the board to friends, or install it with a Hidden King icon">Share</button>
+<button id="btnHelp" class="tb" title="How to use the board and lane states (H)">Help</button>
     <button id="btnGod" class="tb god" title="Edit anything on the board (G)">God mode</button>
   </div>
 </header>
@@ -90,12 +100,14 @@
 <dialog id="dlgSettings" class="dlg"></dialog>
 <dialog id="dlgLayers" class="dlg"></dialog>
 <dialog id="dlgHelp" class="dlg"></dialog>
+<dialog id="dlgShare" class="dlg"></dialog>
 <dialog id="dlgGod" class="dlg wide"></dialog>
 <dialog id="dlgHero" class="dlg"></dialog>
 
 <script src="data/game-data.js"></script>
 <script src="data/map-data.js"></script>
 <script src="data/extra-data.js"></script>
+<script src="data/box-routes.js"></script>
 <script src="app/engine.js"></script>
 <script src="app/audio.js"></script>
 <script src="app/icons.js"></script>

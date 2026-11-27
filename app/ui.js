@@ -24,7 +24,7 @@
   const S = {
     settings: Object.assign({
       lead: DLB_GAME.alerts.leadSeconds, volume: 0.8, alertStyle: DLB_GAME.alerts.style || 'sound', oneSound: true, autoFloat: true, iconSet: 'minimap', voiceName: '', voiceRate: 1,
-      alerts: clone(DLB_GAME.alerts.defaults), keepAwake: true, troops: true, flip: false,
+      alerts: clone(DLB_GAME.alerts.defaults), keepAwake: true, troops: true, flip: false, boxLevel: 1, routeOpacity: 0.85,
       show: {}, showStatic: { labels: true, lanes: true, zips: true, tele: true, under: true },
     }, store.get('settings', {})),
     overrides: Object.assign({ rules: {}, markers: {}, added: [], removed: [], bg: null }, store.get('overrides', {})),
@@ -917,6 +917,30 @@
     d.showModal();
     return d;
   }
+  // ---------- sharing ----------
+  const PUBLIC_URL = 'https://chandleracolvin.github.io/deadlock-board/';
+  let installPrompt = null;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; });
+  function openShare() {
+    const msg = 'Deadlock Board: match timer and tactics map (camp timers, box routes, lane states). Works in Chrome or Edge: ' + PUBLIC_URL;
+    const d = dlgShell('#dlgShare', 'Share with friends', `
+      <p>Send your friends this link. It opens straight in Chrome or Edge, nothing to download.</p>
+      <div class="sharebox"><input id="shUrl" readonly value="${esc(PUBLIC_URL)}"><button class="btn primary" id="shCopy">Copy link</button></div>
+      <div class="btnrow"><button class="btn" id="shMsg">Copy a message with the link</button>${navigator.share ? '<button class="btn" id="shNative">Share…</button>' : ''}</div>
+      <h3>Hidden King icon on their desktop</h3>
+      <p class="hint">Once the page is open, Chrome or Edge can install it as an app with the Hidden King icon: click the install icon at the right end of the address bar (or menu ⋮ → <b>Cast, save and share</b> → <b>Install page as app</b>). It then opens in its own window from the desktop or Start menu.</p>
+      ${installPrompt ? '<div class="btnrow"><button class="btn primary" id="shInstall">Install on this PC</button></div>' : ''}
+      <p class="hint">Each person's settings, heroes and god-mode edits stay in their own browser. ${LOCAL ? 'Global hotkeys and patch watch only work on your PC (the desktop shortcut).' : ''}</p>`);
+    const copy = (text, what) => navigator.clipboard.writeText(text).then(() => toast(what + ' copied'), () => { d.querySelector('#shUrl').select(); toast('Press Ctrl+C to copy'); });
+    d.querySelector('#shUrl').onclick = e => e.target.select();
+    d.querySelector('#shCopy').onclick = () => copy(PUBLIC_URL, 'Link');
+    d.querySelector('#shMsg').onclick = () => copy(msg, 'Message');
+    const nat = d.querySelector('#shNative');
+    if (nat) nat.onclick = () => navigator.share({ title: 'Deadlock Board', text: msg, url: PUBLIC_URL }).catch(() => {});
+    const ins = d.querySelector('#shInstall');
+    if (ins) ins.onclick = async () => { installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; d.close(); };
+  }
+
   function openSettings() {
     const s = S.settings;
     const voices = A.voices();
@@ -1006,10 +1030,26 @@
         <label class="chk"><input type="checkbox" data-s="under" ${ss.under ? 'checked' : ''}> Underground things</label>
         <label class="chk"><input type="checkbox" data-t ${sh.troops !== false ? 'checked' : ''}> Trooper waves</label>
       </div>
+      <h3>Boxes</h3>
+      <label class="field">Box brightness <b id="lyBoxV">${Math.round(S.settings.boxLevel * 100)}%</b>
+        <input class="range" type="range" id="lyBox" min="0.2" max="4" step="0.1" value="${S.settings.boxLevel}"></label>
+      ${window.DLB_ROUTES ? `<label class="chk"><input type="checkbox" data-s="routes" ${ss.routes ? 'checked' : ''}> Box routes from lane <small>${DLB_ROUTES.routes.length} loops</small></label>
+      <label class="field">Route opacity <b id="lyRouteV">${Math.round(S.settings.routeOpacity * 100)}%</b>
+        <input class="range" type="range" id="lyRoute" min="0.1" max="1" step="0.05" value="${S.settings.routeOpacity}"></label>
+      <p class="hint">Short loops you can run between waves: leave the lane at the dot, break the boxes, rejoin at the arrow. Walked on the game's own navigation mesh, so they use doors and stairs and keep to the right floor. Solid: lane height. Dashed: up a floor. Dotted: below the street. Hover a route to ring its boxes.</p>` : ''}
       <div class="btnrow"><button class="btn" data-preset="clean">Clean (objectives and camps)</button><button class="btn" data-preset="all">Everything</button></div>`);
     d.querySelectorAll('[data-k]').forEach(c => c.onchange = () => { sh[c.dataset.k] = c.checked; saveSettings(); tick(true); });
     d.querySelectorAll('[data-s]').forEach(c => c.onchange = () => { ss[c.dataset.s] = c.checked; saveSettings(); applyStatic(); });
     d.querySelector('[data-t]').onchange = e => { sh.troops = e.target.checked; saveSettings(); tick(true); };
+    d.querySelector('#lyBox').oninput = e => {
+      S.settings.boxLevel = +e.target.value; d.querySelector('#lyBoxV').textContent = Math.round(S.settings.boxLevel * 100) + '%';
+      saveSettings(); view.setBoxLevel(S.settings.boxLevel); tick(true);
+    };
+    const ro = d.querySelector('#lyRoute');
+    if (ro) ro.oninput = e => {
+      S.settings.routeOpacity = +e.target.value; d.querySelector('#lyRouteV').textContent = Math.round(S.settings.routeOpacity * 100) + '%';
+      saveSettings(); applyStatic();
+    };
     d.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
       const all = b.dataset.preset === 'all';
       for (const k of LAYER_KINDS) sh[k] = all || !['crate', 'buff_box', 'rope', 'bell', 'snack', 'vent'].includes(k);
@@ -1022,6 +1062,9 @@
     Ls.roads.style.display = ss.lanes ? '' : 'none';
     Ls.zips.style.display = ss.zips ? '' : 'none';
     Ls.tele.style.display = ss.tele ? '' : 'none';
+    Ls.routes.style.display = ss.routes ? '' : 'none';
+    Ls.routes.setAttribute('opacity', S.settings.routeOpacity);
+    view.setBoxLevel(S.settings.boxLevel);
     document.body.classList.toggle('hide-under', !ss.under);
   }
   function openHelp() {
@@ -1496,6 +1539,7 @@
   $('#btnLayers').onclick = openLayers;
   $('#btnSettings').onclick = openSettings;
   $('#btnHelp').onclick = openHelp;
+  $('#btnShare').onclick = openShare;
   $('#btnGod').onclick = () => setGod(!S.god);
   $('#zIn').onclick = () => view.zoomAt(1 / 1.3);
   $('#zOut').onclick = () => view.zoomAt(1.3);

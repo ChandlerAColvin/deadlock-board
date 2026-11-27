@@ -69,6 +69,22 @@ aside.right { border-left: 1px solid var(--ln); }
 .livering { animation: pulse 2s ease-in-out infinite; }
 @keyframes pulse { 50% { stroke-opacity: .2; } }
 body.hide-under .mk.under { display: none; }
+/* Box routes: solid at lane height, dashed up a floor, dotted below the street. */
+.route { cursor: help; }
+.route-under, .route-line, .route-ring { vector-effect: non-scaling-stroke; }
+.route-under { stroke: #05080b; stroke-opacity: .75; stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; }
+.route-line { stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.route-line.up { stroke-dasharray: 7 4; }
+.route-line.down { stroke-dasharray: 1.5 4; }
+.route.hot .route-line { stroke-width: 3.6; }
+.route.hot .route-under { stroke-width: 7; }
+.route-move { fill: none; vector-effect: non-scaling-stroke; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; paint-order: stroke; filter: drop-shadow(0 0 1.5px #05080b) drop-shadow(0 0 1px #05080b); }
+.route-ring { fill: none; stroke-width: 2.2; pointer-events: none; }
+svg.box-glow .mk.k-crate use, svg.box-glow .mk.k-heavy_crate use, svg.box-glow .mk.k-buff_box use { filter: drop-shadow(0 0 3px #ffe7a8); }
+.range { width: 100%; accent-color: #ffb547; }
+.dlg .field { display: block; margin: 6px 0 10px; font-size: 14px; }
+.dlg .field b { float: right; font-weight: 700; }
+.dlg .hint { font-size: 12.5px; color: var(--mu); margin: 4px 0 0; line-height: 1.45; }
 .hero text { pointer-events: none; }
 .zoom { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 4px; }
 .zoom button { min-width: 38px; min-height: 38px; border-radius: 9px; border: 1px solid var(--ln); background: color-mix(in srgb, var(--pn) 90%, transparent); font-weight: 700; }
@@ -207,3 +223,7 @@ code { font-family: Consolas, monospace; font-size: 12px; background: var(--bg);
 .lineup button .rt { margin-left: auto; font-size: 11px; color: #ff8a7a; text-decoration: none; display: inline-block; }
 .lane.window { outline: 2px solid var(--good); outline-offset: -2px; }
 .lane.window .pos { color: var(--good); font-weight: 800; }
+
+/* Share dialog */
+.dlg .sharebox { display: flex; gap: 8px; margin: 8px 0; }
+.dlg .sharebox input { flex: 1; min-height: 34px; font: 600 14px var(--ui); }

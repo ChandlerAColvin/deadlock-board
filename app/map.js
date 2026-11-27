@@ -128,7 +128,7 @@
       '<marker id="tparrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0L10,5L0,10z" fill="#c77dff"/></marker>');
     const root = el('g', {}, svg);
     const L = {};
-    for (const name of ['bg', 'labels', 'roads', 'push', 'zips', 'tele', 'ground', 'mid', 'obj', 'rings', 'troops', 'fronts', 'draw', 'heroes', 'pings']) L[name] = el('g', { class: 'L-' + name }, root);
+    for (const name of ['bg', 'labels', 'roads', 'push', 'zips', 'tele', 'routes', 'ground', 'mid', 'obj', 'rings', 'troops', 'fronts', 'draw', 'heroes', 'pings']) L[name] = el('g', { class: 'L-' + name }, root);
     view.layers = L;
 
     let markerEls = new Map();
@@ -172,9 +172,72 @@
         const d = 'M' + z.path.map(p => X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join('L');
         el('path', { d, fill: 'none', stroke: color, 'stroke-width': 2.4, 'stroke-opacity': 0.9, 'stroke-linejoin': 'round', class: 'zipline' }, L.zips);
       }
+      drawRoutes();
       L.tele.innerHTML = '';
       for (const t of MAP.teleports) {
         el('line', { x1: X(t.from[0]), y1: Y(t.from[1]), x2: X(t.to[0]), y2: Y(t.to[1]), stroke: '#c77dff', 'stroke-opacity': 0.45, 'stroke-width': 1.5, 'stroke-dasharray': '5 6', 'marker-end': 'url(#tparrow)' }, L.tele);
+      }
+    }
+
+    // Box routes (data/box-routes.js, from the game's navmesh). A line is solid at lane height, dashed where the
+    // walk goes up a floor (stairs, a balcony), dotted where it goes below the street. The dot is where you leave
+    // the lane, the arrow where you rejoin it.
+    const ROUTE_BAND = 96; // units (2.4 m) above or below the lane before a stretch counts as another floor
+    let routeEnds = [];
+    function drawRoutes() {
+      L.routes.innerHTML = '';
+      routeEnds = [];
+      const R = window.DLB_ROUTES;
+      if (!R) return;
+      const G = GAME();
+      for (const r of R.routes) {
+        const color = (G.lanes[r.lane] || {}).color || '#fff';
+        const g = el('g', { class: 'route', 'data-route': r.id }, L.routes);
+        const band = z => z - r.laneZ > ROUTE_BAND ? 1 : z - r.laneZ < -ROUTE_BAND ? -1 : 0;
+        let floors = 0;
+        let run = [r.pts[0]], cur = band(r.pts[0][2]);
+        const flush = () => {
+          if (run.length < 2) return;
+          const d = 'M' + run.map(p => X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join('L');
+          el('path', { d, class: 'route-under', fill: 'none' }, g);
+          el('path', { d, class: 'route-line' + (cur > 0 ? ' up' : cur < 0 ? ' down' : ''), fill: 'none', stroke: color }, g);
+        };
+        for (let i = 1; i < r.pts.length; i++) {
+          const p = r.pts[i], b = band(p[2]);
+          run.push(p);
+          if (b !== cur) { flush(); run = [p]; cur = b; if (b !== 0) floors++; }
+        }
+        flush();
+        const a = r.pts[0], z = r.pts[r.pts.length - 1], y = r.pts[r.pts.length - 2];
+        // Jumps/mantles up and drops down (from the navmesh links): a small up or down chevron mid-step.
+        for (const [k, dz] of r.moves || []) {
+          const p = r.pts[k], q = r.pts[k + 1];
+          const mv = el('path', { d: dz > 0 ? 'M-3.5,2L0,-2L3.5,2' : 'M-3.5,-2L0,2L3.5,-2', class: 'route-move', stroke: color }, g);
+          routeEnds.push({ e: mv, x: (X(p[0]) + X(q[0])) / 2, y: (Y(p[1]) + Y(q[1])) / 2, rot: '' });
+        }
+        // The dot and arrow keep their size on screen like the icons do (see placeMarkers).
+        const dot = el('circle', { r: 3.6, fill: color, stroke: '#05080b', 'stroke-width': 1.4 }, g);
+        routeEnds.push({ e: dot, x: X(a[0]), y: Y(a[1]), rot: '' });
+        const ang = Math.atan2(Y(z[1]) - Y(y[1]), X(z[0]) - X(y[0])) * 180 / Math.PI;
+        const arrow = el('path', { d: 'M-5,-4.5L4,0L-5,4.5z', fill: color, stroke: '#05080b', 'stroke-width': 1.2 }, g);
+        routeEnds.push({ e: arrow, x: X(z[0]), y: Y(z[1]), rot: ` rotate(${ang.toFixed(0)})` });
+        const name = (G.lanes[r.lane] || {}).name || r.lane, half = (G.teams[r.side] || {}).name || r.side;
+        const heights = r.pts.map(p => p[2] - r.laneZ);
+        const up = Math.max(...heights), down = Math.min(...heights);
+        const ups = (r.moves || []).filter(m => m[1] > 0), downs = (r.moves || []).filter(m => m[1] < 0);
+        const mvTxt = (ups.length ? ` Jump or mantle up ${ups.map(m => Math.round(m[1] * GAME().metersPerWorldUnit) + ' m').join(', ')}.` : '') +
+          (downs.length ? ` Drop down ${downs.map(m => Math.round(-m[1] * GAME().metersPerWorldUnit) + ' m').join(', ')}.` : '');
+        const lvl = up > ROUTE_BAND ? ` Goes up about ${Math.round(up * GAME().metersPerWorldUnit)} m.` : down < -ROUTE_BAND ? ` Goes down about ${Math.round(-down * GAME().metersPerWorldUnit)} m.` : ' Stays at lane height.';
+        el('title', {}, g).textContent = `${name} box run (${half} half): ${r.boxes.length} box${r.boxes.length > 1 ? 'es' : ''}${r.heavy ? ', ' + r.heavy + ' heavy' : ''}, ${r.lengthM} m lane to lane.${lvl}${mvTxt}`;
+        // Hovering a route rings the boxes it breaks.
+        g.addEventListener('mouseenter', () => {
+          g.classList.add('hot');
+          for (const id of r.boxes) {
+            const m = markerEls.get(id);
+            if (m) el('circle', { class: 'route-ring', cx: X(m.m.u), cy: Y(m.m.v), r: 8, stroke: color }, L.pings);
+          }
+        });
+        g.addEventListener('mouseleave', () => { g.classList.remove('hot'); L.pings.querySelectorAll('.route-ring').forEach(e => e.remove()); });
       }
     }
 
@@ -209,10 +272,18 @@
     }
 
     function placeMarkers() {
+      const k = Math.min(1, iconK * 1.6).toFixed(3);
+      for (const r of routeEnds) r.e.setAttribute('transform', `translate(${r.x.toFixed(1)},${r.y.toFixed(1)}) scale(${k})${r.rot}`);
       for (const r of markerEls.values()) r.g.setAttribute('transform', `translate(${X(r.m.u).toFixed(1)},${Y(r.m.v).toFixed(1)}) scale(${iconK.toFixed(3)})`);
     }
 
     // ---------- dynamic ----------
+    const BOXES = ['crate', 'heavy_crate', 'buff_box'];
+    let boxLevel = 1;
+    view.setBoxLevel = function (f) {
+      boxLevel = f;
+      svg.classList.toggle('box-glow', f > 1.5);
+    };
     view.updateMarkers = function (t, lead, show) {
       const match = api.match();
       for (const r of markerEls.values()) {
@@ -225,6 +296,8 @@
           // 669 crates and buff containers: keep them quiet so camps and objectives stand out.
           if (k === 'crate' || k === 'buff_box') opacity = st.up ? 0.6 : 0.14;
           else if (!st.up) opacity = k === 'heavy_crate' ? 0.2 : 0.26;
+          // Box brightness (Map layers): scales every crate and buff container, glowing when turned up.
+          if (BOXES.includes(k)) opacity = Math.min(1, opacity * boxLevel);
           if (!st.up) {
             const left = st.nextAt - t;
             const quiet = k === 'crate' || k === 'buff_box' || k === 'snack' || k === 'heavy_crate';
