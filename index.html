@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deadlock Board</title>
+<link rel="stylesheet" href="app/styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><b>Deadlock Board</b><span id="patchBadge" class="badge"></span></div>
+  <div class="tools">
+    <button id="btnPatch" class="tb patch" hidden title="Steam has a Deadlock patch newer than the board's timings">New patch</button>
+    <button id="btnFloat" class="tb" title="Keep the Next Up card on top of other windows, including the game in borderless windowed mode">Float Next Up</button>
+    <button id="btnHotkeys" class="tb hk" title="Keyboard shortcuts that work while Deadlock is in front">Hotkeys off</button>
+    <button id="btnFlip" class="tb" title="Flip the map so the other team's base is at the bottom (F)">Flip</button>
+    <button id="btnDraw" class="tb" title="Draw on the map (D). Right-click the map to ping.">Draw</button>
+    <button id="btnLayers" class="tb" title="Show or hide map layers">Layers</button>
+    <button id="btnSettings" class="tb" title="Alerts, sounds and options">Settings</button>
+    <button id="btnHelp" class="tb" title="How to use the board and lane states (H)">Help</button>
+    <button id="btnGod" class="tb god" title="Edit anything on the board (G)">God mode</button>
+  </div>
+</header>
+
+<div class="app">
+  <aside class="left">
+    <section class="clockbox">
+      <div class="mode" role="group" aria-label="Mode">
+        <button data-mode="real" class="on" title="Use alongside a real match: start the clock when the match starts">Real match</button>
+        <button data-mode="sim" title="Play out a match on the board, with the Rift rolled at random like the game">Simulation</button>
+      </div>
+      <div class="clock" id="clock">0:00</div>
+      <div class="clockctl">
+        <button id="btnPlay" class="play" title="Start / pause (Space)">Start</button>
+        <button id="btnBack" title="Back 1 s (Left arrow, Shift for 10 s)">−1s</button>
+        <button id="btnFwd" title="Forward 1 s (Right arrow, Shift for 10 s)">+1s</button>
+        <select id="speed" title="Clock speed">
+          <option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option><option value="16">16×</option>
+        </select>
+      </div>
+      <div class="setrow">
+        <input id="setTime" placeholder="Set time, e.g. 4:32" aria-label="Set match time">
+        <button id="btnSet">Set</button>
+        <button id="btnReset" title="New match from 0:00">New match</button>
+      </div>
+      <input id="scrub" type="range" min="0" max="3600" step="1" value="0" aria-label="Match time">
+    </section>
+
+    <section class="panel">
+      <h3>Coming up</h3>
+      <ol id="upcoming" class="upcoming"></ol>
+    </section>
+
+    <section class="panel">
+      <h3>Lanes</h3>
+      <div id="lanePanel"></div>
+    </section>
+  </aside>
+
+  <main class="mapwrap" id="mapwrap">
+    <svg id="map" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" aria-label="Deadlock map"></svg>
+    <div id="pop" class="pop" hidden></div>
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+    <div id="nextUp" class="nextup" hidden></div>
+    <button id="soundChip" class="soundchip">Click here once to turn on alert sounds</button>
+    <div id="godBanner" class="godbanner" hidden>God mode: drag anything, click to edit, right-click to add</div>
+    <div class="zoom">
+      <button id="zIn" title="Zoom in">+</button><button id="zOut" title="Zoom out">−</button><button id="zFit" title="Fit map">Fit</button>
+    </div>
+  </main>
+
+  <aside class="right">
+    <section class="panel" id="statusPanel">
+      <h3>Match</h3>
+      <div id="matchStatus"></div>
+    </section>
+    <section class="panel">
+      <h3>Heroes <small>drag on the map · double-click to change</small></h3>
+      <div id="lineup" class="lineup"></div>
+      <button id="btnResetHeroes" class="small">Put heroes back in lane</button>
+    </section>
+    <section class="panel" id="inspector">
+      <h3>Selected</h3>
+      <div id="inspect" class="muted">Click anything on the map.</div>
+    </section>
+  </aside>
+</div>
+
+<dialog id="dlgSettings" class="dlg"></dialog>
+<dialog id="dlgLayers" class="dlg"></dialog>
+<dialog id="dlgHelp" class="dlg"></dialog>
+<dialog id="dlgGod" class="dlg wide"></dialog>
+<dialog id="dlgHero" class="dlg"></dialog>
+
+<script src="data/game-data.js"></script>
+<script src="data/map-data.js"></script>
+<script src="data/extra-data.js"></script>
+<script src="app/engine.js"></script>
+<script src="app/audio.js"></script>
+<script src="app/icons.js"></script>
+<script src="app/map.js"></script>
+<script src="app/ui.js"></script>
+</body>
+</html>
