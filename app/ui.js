@@ -13,7 +13,7 @@
 
   const KIND_LABEL = {
     guardian: 'Guardian', walker: 'Walker', base_guardian: 'Base Guardian', shrine: 'Shrine', patron: 'Patron', midboss: 'Mid-Boss',
-    camp_small: 'Small camp', camp_medium: 'Medium camp', camp_large: 'Hard camp', sinners: "Sinner's Sacrifice", urn_spawn: 'Soul Urn spawn',
+    camp_small: 'Small camp', camp_medium: 'Medium camp', camp_large: 'Hard camp', sinners: "Sinner's Sacrifice", urn_spawn: 'Soul Urn site',
     urn_dropoff: 'Soul Urn drop-off', powerup: 'Bridge buff', rift: 'Unstable Rift', snack: 'Healing bat', crate: 'Crate',
     heavy_crate: 'Heavy crate', buff_box: 'Buff container', vent: 'Steam vent', shop: 'Shop', teleporter: 'Teleporter', rope: 'Rope', bell: 'Bell', spawn: 'Spawn',
   };
@@ -24,7 +24,7 @@
   const S = {
     settings: Object.assign({
       lead: DLB_GAME.alerts.leadSeconds, volume: 0.8, alertStyle: DLB_GAME.alerts.style || 'sound', oneSound: true, autoFloat: true, iconSet: 'minimap', voiceName: '', voiceRate: 1,
-      alerts: clone(DLB_GAME.alerts.defaults), keepAwake: true, troops: true, flip: false, boxLevel: 1, routeOpacity: 0.85,
+      alerts: clone(DLB_GAME.alerts.defaults), keepAwake: true, troops: true, flip: false, boxLevel: 1, routeOpacity: 0.85, planLevel: 1,
       show: {}, showStatic: { labels: true, lanes: true, zips: true, tele: true, under: true },
     }, store.get('settings', {})),
     overrides: Object.assign({ rules: {}, markers: {}, added: [], removed: [], bg: null }, store.get('overrides', {})),
@@ -46,7 +46,7 @@
   }
   function buildGame() { S.game = deepMerge(clone(DLB_GAME), S.overrides.rules); }
   function buildMarkers() {
-    const list = E.mergeMarkers(DLB_MAP.points, window.DLB_EXTRA, S.overrides);
+    const list = E.mergeMarkers(DLB_MAP.points, window.DLB_EXTRA, S.overrides, DLB_GAME.mapFixes);
     S.markers = list;
     S.byId = new Map(list.map(m => [m.id, m]));
   }
@@ -224,7 +224,7 @@
     view.updateMarkers(t, S.settings.lead, S.settings.show);
     checkRespawns();
     renderNextUp();
-    if (force || now() - lastList > 450) { lastList = now(); renderUpcoming(); renderStatus(); renderLanes(false); if (EDIT.key) updateLaneEditor(); }
+    if (force || now() - lastList > 450) { lastList = now(); renderUpcoming(); renderStatus(); renderLanes(false); renderPins(false); if (EDIT.key) updateLaneEditor(); }
     if (force) { view.drawFronts(S.fronts, S.laneStates); view.drawTroops(t, S.fronts, S.settings.troops && S.settings.show.troops !== false); }
     if (!S.clock.running && force) A.keepAwake(false);
     autosave();
@@ -259,7 +259,7 @@
     return [r.first + n * r.every - r.jitter, r.first + n * r.every + r.jitter];
   }
   function itemWhere(i) {
-    if (i.kind === 'urn_spawn') return S.game.lanes[i.side].name + ' side, one of two spots';
+    if (i.kind === 'urn_spawn') return S.game.lanes[i.side].name + ' site, deliver at ' + S.game.lanes[i.side === 'york' ? 'greenwich' : 'york'].name;
     if (i.kind === 'rift') return 'York or Greenwich side bridge';
     if (i.kind === 'powerup') return 'Both bridges';
     if (i.kind === 'midboss') return 'Pit under Broadway';
@@ -406,7 +406,7 @@
       case 'heavy_crate': return [`Heavy crate: break it with a heavy melee. Always drops ${sp.souls} souls + ${sp.soulsPerMin} a minute.`, `Most spawn at ${f(sp.first)} and return ${f(sp.respawn)} after they break. A few places differ; click a crate to see its timer.`];
       case 'buff_box': return ['Buff container: drops a permanent stat buff.', `Most spawn at ${f(sp.first)} and return ${f(sp.respawn)} after they break.`];
       case 'powerup': return ['Bridge buff: a glowing stone on each of the two bridges. Heavy melee it to claim.', `Lasts ${sp.buffSeconds} s. Types: Casting, Gun, Movement, Survival.`, `${f(sp.first)}, then every ${f(sp.every)}. One left unclaimed is replaced at the next spawn.`];
-      case 'urn_spawn': return [`Soul Urn: drops on one of two spots on its side and takes ${sp.descend} s to land.`, 'Carry it to the drop-off on the other side for souls and 4 permanent buffs. A melee or a stun makes the carrier drop it.', `${f(sp.first)}, then every ${f(sp.every)}: York side first, then alternating.`];
+      case 'urn_spawn': return [`Soul Urn: one site at each end of the map, by the York and Greenwich bridges. It lands at one (${sp.descend} s from the sky) and is delivered to the other.`, `Worth ${sp.souls} souls + ${sp.soulsPerMin} a minute (set when it spawns) and 4 permanent buffs. A melee or a stun makes the carrier drop it. Can't use ziplines or teleporters while carrying.`, `${f(sp.first)}, then every ${f(sp.every)}: York first, then alternating. Left alone for ${f(sp.walksAfter)} it starts walking to the drop-off by itself; ${sp.decayAfter} s after pickup its value starts draining.`];
       case 'midboss': return ['Mid-Boss in the pit under Broadway.', `The killing team gets ${G.midboss.souls.toLocaleString()} souls + ${G.midboss.soulsPerMin} a minute, 2 permanent buffs each, and ${G.rejuv.crystals} Rejuvenator crystals (team revives for ${f(G.rejuv.buffSeconds)}).`, 'Respawns 7:00 after the first kill, 6:00 after the second, 5:00 after later ones.'];
       case 'rift': return ["Unstable Rift: hold the point on a side lane's bridge (York or Greenwich) for a large soul reward.", `The time is random: the first opens ${f(sp.first - sp.jitter)}–${f(sp.first + sp.jitter)}, then every ${f(sp.every - sp.jitter)}–${f(sp.every + sp.jitter)}.`, `The game announces it ${sp.announce} s before it opens. ${sp.hint} s before that, a visual hint shows which lane.`, 'The team behind on souls gets bonuses while contesting it.'];
       default: return [];
@@ -678,7 +678,12 @@
       lines.push('Health about ' + hp.toLocaleString() + ' · respawn 7:00 / 6:00 / 5:00 after deaths');
     } else if (k === 'vent') lines.push('Hide inside to drop out of sight and recover. An enemy who follows you in reveals you.');
     else if (k === 'powerup') lines.push(st.up ? 'Buff waiting (heavy melee to claim, lasts ' + G.spawns.powerup.buffSeconds + ' s)' : 'Next at ' + E.fmt(st.nextAt));
-    else if (k === 'urn_spawn') lines.push(st.up ? 'The urn is on this side (one of two spots)' : 'Next urn ' + E.fmt(st.nextAt) + ' on the ' + G.lanes[st.nextSide].name + ' side');
+    else if (k === 'urn_spawn') {
+      const other = G.lanes[m.side === 'york' ? 'greenwich' : 'york'].name;
+      lines.push(st.up ? (st.walking ? 'Urn here, walking to the ' + other + ' site by itself' : 'Urn here: deliver it to the ' + other + ' site')
+        : st.deliver ? 'Delivery point for the urn now on the ' + other + ' side'
+        : 'Next urn ' + E.fmt(st.nextAt) + (st.nextSide === m.side ? ' lands here' : ' lands on the ' + other + ' side (deliver here)'));
+    }
     else if (k === 'rift') lines.push(st.up ? 'Open' : st.possible ? 'Window open now' : st.nextAt ? (S.match.riftMode === 'sim' ? 'Next at ' : 'Window opens ') + E.fmt(st.nextAt) : '');
     else if (E.OBJECTIVES.includes(k)) {
       const o = G.objectives[k] || {};
@@ -701,6 +706,20 @@
     if (S.god) return;
     const { title, sub } = markerTitle(m);
     const k = m.kind;
+    const btns = markerButtons(m);
+    if (E.OBJECTIVES.includes(k)) { const o = S.game.objectives[k] || {}; if (o.rangeM) view.drawRange(m, o.rangeM); }
+    btns.push(['pin', 'Pin details →']);
+    const info = markerInfo(m);
+    openPop(evt, `<h4>${esc(title)}</h4><div class="sub">${esc(sub)}</div>${info.map(l => `<div style="font-size:13px">${esc(l)}</div>`).join('')}<div class="acts" style="margin-top:8px">${btns.map(b => `<button data-a="${b[0]}" class="${b[2] || ''}">${esc(b[1])}</button>`).join('')}</div><div style="font-size:11.5px;margin-top:6px;opacity:.7">Tip: drag it onto either side to pin it there.</div>`, pop => {
+      pop.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+        if (b.dataset.a === 'pin') { closePop(); pinMarker(id, 'right'); return; }
+        markerAction(id, b.dataset.a);
+        closePop();
+      }));
+    });
+  }
+  function markerButtons(m) {
+    const k = m.kind;
     const btns = [];
     if (E.AFTER_CLEAR.includes(k)) {
       btns.push(['clear', CLEAR_WORD[k] || 'Cleared', 'primary']);
@@ -715,22 +734,17 @@
       btns.push(['claim', k === 'urn_spawn' ? 'Urn taken' : k === 'rift' ? 'Captured' : 'Claimed', 'primary']);
     } else if (E.OBJECTIVES.includes(k)) {
       btns.push(['dmg:0.1', '−10%'], ['dmg:0.25', '−25%'], ['destroy', 'Destroyed', 'primary'], ['restore', 'Full health']);
-      const o = S.game.objectives[k] || {};
-      if (o.rangeM) view.drawRange(m, o.rangeM);
     }
-    const info = markerInfo(m);
-    openPop(evt, `<h4>${esc(title)}</h4><div class="sub">${esc(sub)}</div>${info.map(l => `<div style="font-size:13px">${esc(l)}</div>`).join('')}<div class="acts" style="margin-top:8px">${btns.map(b => `<button data-a="${b[0]}" class="${b[2] || ''}">${esc(b[1])}</button>`).join('')}</div>`, pop => {
-      pop.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-        const a = b.dataset.a;
-        if (a === 'clearcamp') { for (const x of S.markers) if (x.camp === m.camp && E.AFTER_CLEAR.includes(x.kind)) S.match.act(x.id, 'clear'); }
-        else if (a.startsWith('kill:')) S.match.act(id, 'kill', a.split(':')[1]);
-        else if (a.startsWith('dmg:')) S.match.act(id, 'damage', Number(a.split(':')[1]));
-        else S.match.act(id, a);
-        closePop();
-        tick(true);
-        renderInspector();
-      }));
-    });
+    return btns;
+  }
+  function markerAction(id, a) {
+    const m = S.byId.get(id);
+    if (a === 'clearcamp') { for (const x of S.markers) if (x.camp === m.camp && E.AFTER_CLEAR.includes(x.kind)) S.match.act(x.id, 'clear'); }
+    else if (a.startsWith('kill:')) S.match.act(id, 'kill', a.split(':')[1]);
+    else if (a.startsWith('dmg:')) S.match.act(id, 'damage', Number(a.split(':')[1]));
+    else S.match.act(id, a);
+    tick(true);
+    renderInspector();
   }
   function renderInspector() {
     const box = $('#inspect');
@@ -819,6 +833,121 @@
     });
   }
 
+  // ---------- side tabs, collapsing, pinned details ----------
+  // S.settings.panels: per side the open tab and whether the side is collapsed, which sections are shut, and the
+  // markers pinned to each side's Details tab (dragged there from the map).
+  const PN = S.settings.panels = Object.assign({ left: { tab: 'board', collapsed: false }, right: { tab: 'board', collapsed: false }, shut: {}, pins: { left: [], right: [] }, pinShut: {} }, S.settings.panels || {});
+  function sideEl(side) { return document.querySelector(`aside[data-side="${side}"]`); }
+  function applySides() {
+    for (const side of ['left', 'right']) {
+      const a = sideEl(side), st = PN[side];
+      a.classList.toggle('collapsed', !!st.collapsed);
+      document.body.classList.toggle(side[0] + 'col', !!st.collapsed);
+      const c = a.querySelector('.collapse');
+      c.textContent = (side === 'left') === !st.collapsed ? '«' : '»';
+      c.title = st.collapsed ? 'Open this side' : 'Collapse this side';
+      a.querySelectorAll('[data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === st.tab); b.setAttribute('aria-selected', b.dataset.tab === st.tab); });
+      a.querySelectorAll('[data-pane]').forEach(p => { p.hidden = p.dataset.pane !== st.tab; });
+      const n = PN.pins[side].length;
+      a.querySelector('[data-tab=details] .cnt').textContent = n ? n : '';
+    }
+    document.querySelectorAll('.panel[data-sec]').forEach(p => p.classList.toggle('shut', !!PN.shut[p.dataset.sec]));
+  }
+  function setSide(side, patch) { Object.assign(PN[side], patch); saveSettings(); applySides(); renderPins(true); }
+  for (const side of ['left', 'right']) {
+    const a = sideEl(side);
+    a.querySelector('.collapse').onclick = () => setSide(side, { collapsed: !PN[side].collapsed });
+    a.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => setSide(side, { tab: b.dataset.tab, collapsed: false }));
+  }
+  document.querySelectorAll('.panel[data-sec] > h3').forEach(h => h.addEventListener('click', e => {
+    if (e.target.closest('button, a, input, select')) return;
+    const sec = h.parentElement.dataset.sec;
+    PN.shut[sec] = !PN.shut[sec];
+    saveSettings(); applySides();
+  }));
+
+  function pinMarker(id, side) {
+    for (const s of ['left', 'right']) PN.pins[s] = PN.pins[s].filter(x => x !== id);
+    PN.pins[side].unshift(id);
+    delete PN.pinShut[id];
+    setSide(side, { tab: 'details', collapsed: false });
+  }
+  function renderPins(force) {
+    if (!S.match) return;
+    for (const side of ['left', 'right']) {
+      const box = sideEl(side).querySelector('.pins');
+      const ids = PN.pins[side].filter(id => S.byId.has(id));
+      const key = ids.join(',');
+      if (force || box.dataset.key !== key) {
+        box.dataset.key = key;
+        box.innerHTML = ids.map(id => {
+          const m = S.byId.get(id), { title, sub } = markerTitle(m);
+          return `<div class="pin${PN.pinShut[id] ? ' shut' : ''}" data-id="${esc(id)}"><header>${iconSvg(m.kind)}<span><b>${esc(title)}</b><small class="muted">${esc(sub)}</small></span>
+            <span class="pa"><button data-p="show" title="Show on the map">⌖</button><button data-p="close" title="Remove">✕</button></span></header><div class="pin-body"></div></div>`;
+        }).join('');
+        box.querySelectorAll('.pin').forEach(card => {
+          const id = card.dataset.id;
+          card.querySelector('header').onclick = e => {
+            const b = e.target.closest('[data-p]');
+            if (b && b.dataset.p === 'close') { PN.pins[side] = PN.pins[side].filter(x => x !== id); saveSettings(); applySides(); renderPins(true); return; }
+            if (b && b.dataset.p === 'show') { view.highlight([id], true); return; }
+            PN.pinShut[id] = !PN.pinShut[id]; saveSettings(); card.classList.toggle('shut', !!PN.pinShut[id]);
+          };
+          card.querySelector('.pin-body').addEventListener('click', e => {
+            const b = e.target.closest('[data-a]');
+            if (!b) return;
+            markerAction(id, b.dataset.a);
+            renderPins(true);
+          });
+        });
+      }
+      box.querySelectorAll('.pin').forEach(card => {
+        const m = S.byId.get(card.dataset.id);
+        const body = card.querySelector('.pin-body');
+        const html = pinBody(m);
+        if (body.dataset.h !== html) { body.dataset.h = html; body.innerHTML = html; }
+      });
+    }
+  }
+  // A pinned card: a big countdown or state on top, then the same facts as the popover, then its buttons.
+  function pinBody(m) {
+    const t = S.match.t, st = S.match.status(m.id, t) || {};
+    let big = '';
+    if (st.hp !== undefined && st.maxHp) big = st.hp > 0 ? Math.round(st.hp / st.maxHp * 100) + '% health' : 'Destroyed';
+    else if (st.up) big = 'Up now';
+    else if (st.nextAt != null && st.nextAt > t) big = E.fmt(st.nextAt - t);
+    const acts = markerButtons(m).map(b => `<button data-a="${b[0]}" class="${b[2] || ''}">${esc(b[1])}</button>`).join('');
+    return (big ? `<div class="big">${esc(big)}</div>` : '') + markerInfo(m).map(l => `<div>${esc(l)}</div>`).join('') + (acts ? `<div class="acts">${acts}</div>` : '');
+  }
+
+  // Dragging a marker off the map: a small label follows the pointer; dropping it on a side pins it there.
+  let ghost = null;
+  function markerDragMove(id, x, y) {
+    const m = S.byId.get(id);
+    if (!m) return;
+    if (!ghost) {
+      ghost = document.createElement('div');
+      ghost.className = 'dragghost';
+      ghost.innerHTML = iconSvg(m.kind) + esc(markerTitle(m).title);
+      document.body.append(ghost);
+      document.body.classList.add('mkdrag');
+      closePop();
+    }
+    ghost.style.left = x + 'px';
+    ghost.style.top = y + 'px';
+    const over = document.elementFromPoint(x, y);
+    const a = over && over.closest('aside.side');
+    document.querySelectorAll('aside.side').forEach(s => s.classList.toggle('over', s === a));
+  }
+  function markerDragEnd(id, x, y) {
+    if (ghost) { ghost.remove(); ghost = null; }
+    const over = document.elementFromPoint(x, y);
+    const a = over && over.closest('aside.side');
+    document.body.classList.remove('mkdrag');
+    document.querySelectorAll('aside.side').forEach(s => s.classList.remove('over'));
+    if (a) { pinMarker(id, a.dataset.side); toast('Pinned ' + markerTitle(S.byId.get(id)).title, 'Details tab, ' + a.dataset.side + ' side'); }
+  }
+
   // ---------- heroes UI ----------
   // Dead heroes: deadUntil is the match time they respawn (deadlock.wiki/Death curve in game-data respawn).
   const heroDead = h => h.deadUntil !== null && h.deadUntil !== undefined && h.deadUntil > (S.match ? S.match.t : 0);
@@ -883,7 +1012,14 @@
       : tokens ? 'Rejuvenator: ' + tokens + ' token' + (tokens > 1 ? 's' : '') + ' left, so a death revives them' : 'Respawn now: ' + E.fmt(E.respawnTime(S.game, t, false));
     const acts = dead ? '<button data-a="alive" class="primary">Alive now</button>'
       : `<button data-a="hero" class="primary">Killed by a hero (${E.fmt(E.respawnTime(S.game, t, false))})</button><button data-a="unit">Killed by troopers or an objective (${E.fmt(E.respawnTime(S.game, t, true))})</button>`;
-    openPop(evt, `<h4>${esc(h.name)}</h4><div class="sub">${esc(S.game.teams[h.team].name)} · ${esc(sub)}</div><div class="acts">${acts}<button data-a="pick">Change hero</button></div>`, pop => {
+    const RINGS = [0, 8, 15, 20, 25, 30, 42];
+    const ringRow = `<div class="sub" style="margin-top:8px">Distance circle</div><div class="acts">${RINGS.map(r => `<button data-ring="${r}" class="${(h.ring || 0) === r ? 'primary' : ''}">${r ? r + ' m' : 'Off'}</button>`).join('')}<input data-ringc type="number" min="1" max="200" placeholder="m" title="Any distance in metres, then Enter" value="${h.ring && !RINGS.includes(h.ring) ? h.ring : ''}" style="width:58px;min-height:30px"></div>`;
+    openPop(evt, `<h4>${esc(h.name)}</h4><div class="sub">${esc(S.game.teams[h.team].name)} · ${esc(sub)}</div><div class="acts">${acts}<button data-a="pick">Change hero</button></div>${ringRow}`, pop => {
+      const setRing = r => { h.ring = r > 0 ? Math.min(200, r) : 0; closePop(); drawHeroes(); autosave(true); };
+      pop.querySelectorAll('[data-ring]').forEach(b => b.onclick = () => setRing(Number(b.dataset.ring)));
+      const rc = pop.querySelector('[data-ringc]');
+      rc.onkeydown = e => { if (e.key === 'Enter') setRing(Number(rc.value)); };
+      rc.onchange = () => setRing(Number(rc.value));
       const done = () => { closePop(); drawHeroes(); renderLineup(); renderStatus(); renderLanes(false); autosave(true); };
       const on = (a, fn) => { const b = pop.querySelector(`[data-a=${a}]`); if (b) b.onclick = () => { fn(); done(); }; };
       on('hero', () => killHero(h, false));
@@ -1016,13 +1152,14 @@
     A.voice.name = S.settings.voiceName;
     A.voice.rate = S.settings.voiceRate;
   }
-  const LAYER_KINDS = ['guardian', 'walker', 'base_guardian', 'shrine', 'patron', 'midboss', 'camp_small', 'camp_medium', 'camp_large', 'sinners', 'urn_spawn', 'urn_dropoff', 'powerup', 'rift', 'snack', 'heavy_crate', 'crate', 'buff_box', 'vent', 'shop', 'teleporter', 'rope', 'bell', 'spawn'];
+  const LAYER_KINDS = ['guardian', 'walker', 'base_guardian', 'shrine', 'patron', 'midboss', 'camp_small', 'camp_medium', 'camp_large', 'sinners', 'urn_spawn', 'powerup', 'rift', 'snack', 'heavy_crate', 'crate', 'buff_box', 'vent', 'shop', 'teleporter', 'rope', 'bell', 'spawn'];
   function openLayers() {
     const sh = S.settings.show, ss = S.settings.showStatic;
     const d = dlgShell('#dlgLayers', 'Map layers', `
       <div class="grid2">${LAYER_KINDS.map(k => `<label class="chk"><input type="checkbox" data-k="${k}" ${sh[k] !== false ? 'checked' : ''}> ${esc(KIND_LABEL[k])} <small>${S.markers.filter(m => m.kind === k).length}</small></label>`).join('')}</div>
       <h3>Other</h3>
       <div class="grid2">
+        <label class="chk"><input type="checkbox" data-s="plan" ${ss.plan !== false ? 'checked' : ''}> City plan (streets, buildings)</label>
         <label class="chk"><input type="checkbox" data-s="labels" ${ss.labels ? 'checked' : ''}> Place names</label>
         <label class="chk"><input type="checkbox" data-s="lanes" ${ss.lanes ? 'checked' : ''}> Lanes</label>
         <label class="chk"><input type="checkbox" data-s="zips" ${ss.zips ? 'checked' : ''}> Ziplines</label>
@@ -1030,6 +1167,8 @@
         <label class="chk"><input type="checkbox" data-s="under" ${ss.under ? 'checked' : ''}> Underground things</label>
         <label class="chk"><input type="checkbox" data-t ${sh.troops !== false ? 'checked' : ''}> Trooper waves</label>
       </div>
+      <label class="field">City plan brightness <b id="lyPlanV">${Math.round(S.settings.planLevel * 100)}%</b>
+        <input class="range" type="range" id="lyPlan" min="0.2" max="1.6" step="0.05" value="${S.settings.planLevel}"></label>
       <h3>Boxes</h3>
       <label class="field">Box brightness <b id="lyBoxV">${Math.round(S.settings.boxLevel * 100)}%</b>
         <input class="range" type="range" id="lyBox" min="0.2" max="4" step="0.1" value="${S.settings.boxLevel}"></label>
@@ -1044,6 +1183,10 @@
     d.querySelector('#lyBox').oninput = e => {
       S.settings.boxLevel = +e.target.value; d.querySelector('#lyBoxV').textContent = Math.round(S.settings.boxLevel * 100) + '%';
       saveSettings(); view.setBoxLevel(S.settings.boxLevel); tick(true);
+    };
+    d.querySelector('#lyPlan').oninput = e => {
+      S.settings.planLevel = +e.target.value; d.querySelector('#lyPlanV').textContent = Math.round(S.settings.planLevel * 100) + '%';
+      saveSettings(); applyStatic();
     };
     const ro = d.querySelector('#lyRoute');
     if (ro) ro.oninput = e => {
@@ -1063,37 +1206,82 @@
     Ls.zips.style.display = ss.zips ? '' : 'none';
     Ls.tele.style.display = ss.tele ? '' : 'none';
     Ls.routes.style.display = ss.routes ? '' : 'none';
+    const plan = Ls.bg.querySelector('.cityplan');
+    if (plan) {
+      plan.style.display = ss.plan === false ? 'none' : '';
+      document.body.classList.toggle('has-plan', ss.plan !== false);
+      const k = S.settings.planLevel;
+      plan.style.opacity = Math.min(1, k);
+      plan.style.filter = k > 1 ? `brightness(${k})` : '';
+    }
     Ls.routes.setAttribute('opacity', S.settings.routeOpacity);
     view.setBoxLevel(S.settings.boxLevel);
     document.body.classList.toggle('hide-under', !ss.under);
   }
   function openHelp() {
+    const G = S.game, orb = G.troopers.soulOrbRangeM;
     dlgShell('#dlgHelp', 'How to use Deadlock Board', `
-      <h3>During a real match</h3>
+      <p class="muted">Start with the first box. The rest is there when you want it: click a heading to open it.</p>
+      <details class="help" open><summary>1. Start a match (30 seconds)</summary>
       <ol class="help">
-        <li>Pick <b>Real match</b>. Press <b>Start</b> when the in-game clock reads 0:00. If you're off, type the game time in <b>Set time</b> (for example <code>4:32</code>) or nudge with ← →.</li>
-        <li>About ${S.settings.lead} seconds before each spawn you hear a soft cue and the <b>Next</b> card in the corner of the map lights up. Change the sound, or add a word or sentence, in <b>Settings</b>.</li>
-        <li>Press <b>Float Next Up</b> (or click <b>Start</b>) to keep the Next card on top of the game in its own small window. It works when Deadlock runs in <b>borderless windowed</b> mode, not exclusive fullscreen.</li>
-        <li>Click a camp, crate, snack or the Mid-Boss when it's cleared or taken. Its respawn timer starts, and you get an alert before it's back.</li>
-        <li>The Unstable Rift's exact time is random in the game, so in Real match the board shows its window. In <b>Simulation</b> it is rolled at random like the game does.</li>
-      </ol>
-      <h3>On the board</h3>
+        <li><b>Click the board once</b> so it can play sounds (the orange button at the bottom of the map).</li>
+        <li>Pick <b>Real match</b> on the left and press <b>Start</b> when the in-game clock reads 0:00. Off by a bit? Type the game time in <b>Set time</b> (for example <code>4:32</code>) or nudge it with ← →.</li>
+        <li>Watch the <b>Next</b> card on the map. About ${S.settings.lead} s before each spawn you hear a soft cue and the card lights up.</li>
+        ${LOCAL ? '<li>Playing on one screen? Press <b>Float Next Up</b> to keep that card on top of the game (Deadlock in <b>borderless windowed</b> mode).</li>' : ''}
+      </ol></details>
+
+      <details class="help" open><summary>2. During the match</summary>
       <ul class="help">
-        <li>Drag heroes like chess pieces. Double-click one to change the hero. Right-click a hero (on the map or in the lineup) and pick <b>Killed by a hero</b> or <b>Killed by troopers or an objective</b>: the token shows a respawn countdown from the deadlock.wiki curve (8 s before 5:00, up to 90 s; +10 s with no enemy hero on the kill). If their team holds the Rejuvenator, a death uses one token and they revive instead. While every enemy hero in a lane is dead, that lane shows a green <b>Push window</b> with the time left.</li>
-        <li>The crossed swords on each lane are where the waves meet. They start in the middle. Drag them, or pick a lane state on the left.</li>
-        <li>Click any lane (or <b>Edit</b> in the Lanes panel) to set exactly where the waves meet, jump them to a Guardian or Walker, and set how many troopers each side has there (for example 4 v 3 for a freeze). Each team's colour on the lane shows how far it has pushed.</li>
-        <li>Right-click the map to ping. Press <b>Draw</b> to sketch a plan.</li>
-        <li>Scroll to zoom, drag empty space to pan, <b>Flip</b> to put the other base at the bottom.</li>
-      </ul>
-      <h3>Lane states</h3>
+        <li><b>Something got cleared or taken?</b> Click it on the map and press the button (Cleared, Urn taken, Killed by…). Its respawn timer starts and you get a cue before it's back.</li>
+        <li><b>Soul Urn:</b> there are two sites, by the York and Greenwich bridges. It lands at one (York first at ${E.fmt(G.spawns.urn_spawn.first)}, then every ${E.fmt(G.spawns.urn_spawn.every)} alternating) and is delivered at the other. The board marks the delivery site <b>DELIVER HERE</b>.</li>
+        <li><b>Unstable Rift:</b> its time is random, so a real match shows its window. <b>Simulation</b> rolls it like the game.</li>
+        <li><b>Hero died?</b> Right-click the hero: <b>Killed by a hero</b> or <b>Killed by troopers or an objective</b>. A countdown shows when they're back. If every enemy in a lane is dead, the lane shows a green <b>Push window</b>.</li>
+      </ul></details>
+
+      <details class="help" open><summary>3. Reading the map</summary>
+      <ul class="help">
+        <li>The city is drawn from the game's own navigation data, at true scale. <b>Dark</b>: streets and open ground you can walk. <b>Slate blocks</b>: buildings and walls. <b>Lighter</b>: roofs, balconies and upper floors. <b>Darkest</b>: below the street (tunnels, the Mid-Boss pit).</li>
+        <li>Each lane is a coloured tint along its real street. The team colours on it show how far each side has pushed, and the crossed swords are where the waves meet.</li>
+        <li>Icons follow the in-game minimap. Your structures are lane-coloured, enemy ones red. Sinner's Sacrifice is bright gold. Faded icons aren't up yet.</li>
+        <li><b>Layers</b> turns any of this on or off, and sets the brightness of the city plan and the boxes.</li>
+      </ul></details>
+
+      <details class="help"><summary>4. Side panels: tabs, folding, pinning details</summary>
+      <ul class="help">
+        <li>Each side has tabs at the top: <b>Timers</b> / <b>Match</b> and a <b>Details</b> tab. The <b>«</b> / <b>»</b> button folds the whole side into a slim rail for a bigger map; click a tab on the rail to open it again.</li>
+        <li>Click a section heading (Coming up, Lanes, Heroes…) to fold it.</li>
+        <li><b>Want to keep an eye on something?</b> Drag it from the map onto either side, for example the Stage Hand camp in the Theater. Its live card (timer, creatures, souls, buttons) lands in that side's <b>Details</b> tab. Or click it and press <b>Pin details →</b>. ⌖ finds it on the map, ✕ removes the card, and clicking the card's name folds it.</li>
+      </ul></details>
+
+      <details class="help"><summary>5. Planning with heroes</summary>
+      <ul class="help">
+        <li>Drag heroes like chess pieces. Double-click one to change the hero.</li>
+        <li><b>Distance circle:</b> right-click a hero and pick a distance (8, 15, 20, 25, 30, ${orb} m, or type any number). The circle is true distance on the map and moves with the hero.</li>
+        <li>Click a lane (or <b>Edit</b> in Lanes) to set where the waves meet, jump them to a Guardian or Walker, and set trooper counts (for example 4 v 3 for a freeze).</li>
+        <li>Right-click the map to ping. Press <b>Draw</b> to sketch. Scroll to zoom, drag empty space to pan, <b>Flip</b> to put the other base at the bottom.</li>
+      </ul></details>
+
+      <details class="help"><summary>6. Boxes and box routes</summary>
+      <ul class="help">
+        <li><b>Layers → Boxes</b>: make every crate and buff container dimmer or brighter, and turn on <b>Box routes</b>.</li>
+        <li>A route is a short loop to run between waves: leave the lane at the dot, break the boxes, rejoin at the arrow. Solid is lane height, dashed is up a floor, dotted is below the street, and chevrons mark a jump up or a drop. Hover a route to ring its boxes.</li>
+      </ul></details>
+
+      <details class="help"><summary>7. Lane states: defensive, fast push, freeze</summary>
       <div class="state"><b>Defensive</b><p>Kill the wave out of harm's way. Look for safe chip damage and take every box and camp you can. Avoid fights until you are ahead on souls, then look for ult windows and careful picks. Farm after each failed try. Never go stale in lane.</p></div>
       <div class="state"><b>Fast push</b> (their Guardian, enemy alive)<p>Kill the enemy wave as fast as possible while keeping as many of your troopers alive as possible. Hit the Guardian with abilities and headshots.</p></div>
-      <div class="state f"><b>Freeze</b> (their Guardian, after you win the fight)<p>Start when an enemy is at or below 50%, you have ult advantage, or you can control the fight another way. Kill one enemy trooper and keep all of yours, so your wave wins on its own. Push the enemy off the wave: keep them more than ${S.game.troopers.soulOrbRangeM} m from their troopers so the wave pays them nothing. Collect souls as troopers die and don't take trooper damage. If they die, kill their troopers at once and push the Guardian. Done right, you have 3–4 troopers alive, a new wave coming, and the enemy dead or too low to contest. The board draws the ${S.game.troopers.soulOrbRangeM} m ring when a lane is set to Freeze.</p></div>
-      <h3>Keys</h3>
+      <div class="state f"><b>Freeze</b> (their Guardian, after you win the fight)<p>Start when an enemy is at or below 50%, you have ult advantage, or you can control the fight another way. Kill one enemy trooper and keep all of yours, so your wave wins on its own. Push the enemy off the wave: keep them more than ${orb} m from their troopers so the wave pays them nothing. Collect souls as troopers die and don't take trooper damage. If they die, kill their troopers at once and push the Guardian. Done right, you have 3–4 troopers alive, a new wave coming, and the enemy dead or too low to contest. The board draws the ${orb} m ring when a lane is set to Freeze.</p></div>
+      </details>
+
+      <details class="help"><summary>8. Keys</summary>
       <p><code>Space</code> start/pause · <code>←</code> <code>→</code> 1 s (<code>Shift</code> 10 s) · <code>F</code> flip · <code>D</code> draw · <code>G</code> god mode · <code>H</code> help · <code>Esc</code> close</p>
-      ${LOCAL ? `<p>These only work while the board is the active window. For keys that work while Deadlock is in front (start the clock at 0:00, Mid-Boss down, urn taken, "what's next?"), press <b>Hotkeys</b> at the top.</p>` : ''}
-      <h3>Keeping it current</h3>
-      <p>Timings live in <code>data/game-data.js</code>. After a patch, give Claude the patch notes and ask it to update that file (instructions are in <code>CLAUDE.md</code>). Changes you make in god mode are saved in this browser; export them from god mode to keep a copy.</p>`);
+      ${LOCAL ? `<p>These work while the board is the active window. For keys that work while Deadlock is in front (start the clock at 0:00, Mid-Boss down, urn taken, "what's next?"), press <b>Hotkeys</b> at the top.</p>` : ''}
+      </details>
+
+      <details class="help"><summary>9. Sharing and keeping it current</summary>
+      <p><b>Share</b> at the top copies the link for friends and explains how to install it with the Hidden King icon. Everyone's settings and edits stay in their own browser.</p>
+      <p><b>God mode</b> edits anything (positions, timings). Its changes are saved in this browser; export them from god mode to keep a copy.${LOCAL ? ' After a patch, give Claude the patch notes and ask it to update <code>data/game-data.js</code> (steps in <code>CLAUDE.md</code>).' : ''}</p>
+      </details>`);
   }
 
   // ---------- god mode ----------
@@ -1461,6 +1649,8 @@
     moveFront(lane, s) { S.fronts[lane] = s; S.laneStates[lane] = { mode: 'manual', team: 'amber' }; view.drawFronts(S.fronts, S.laneStates); renderLanes(false); },
     frontDropped() { autosave(true); },
     markerClick,
+    markerDragMove,
+    markerDragEnd,
     markerMoved(id, u, v) { editMarker(id, { u, v }); },
     backgroundClick(u, v, e) {
       S.selected = null; S.selHero = -1; renderInspector(); drawHeroes();
@@ -1474,6 +1664,7 @@
     drawDone(pts) { S.drawings.push({ pts, color: S.drawColor }); view.drawDrawings(S.drawings); autosave(true); },
     redrawScaled() { if (!view) return; if (S.heroes) drawHeroes(); if (S.fronts && S.match) { view.drawFronts(S.fronts, S.laneStates); } },
   });
+  applySides();
   computeGuardians();
   for (const l of DLB_MAP.lanes) { S.fronts[l.key] = 0.5; S.laneStates[l.key] = { mode: 'even', team: 'amber' }; }
   resetLaneTroops();

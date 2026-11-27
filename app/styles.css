@@ -22,7 +22,9 @@ small { color: var(--mu); font-weight: 400; }
 .tb.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .tb.god.on { background: var(--god); border-color: var(--god); color: #1a0b02; }
 
-.app { display: grid; grid-template-columns: 300px minmax(0, 1fr) 300px; height: calc(100% - 48px); }
+.app { display: grid; grid-template-columns: var(--lw, 300px) minmax(0, 1fr) var(--rw, 300px); height: calc(100% - 48px); }
+body.lcol .app { --lw: 42px; }
+body.rcol .app { --rw: 42px; }
 aside { overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; background: #0b1117; }
 aside.left { border-right: 1px solid var(--ln); }
 aside.right { border-left: 1px solid var(--ln); }
@@ -197,7 +199,7 @@ body.pip { overflow-y: auto; background: #070b0f; padding: 0; }
 .heroes-grid button:hover { border-color: var(--acc); }
 code { font-family: Consolas, monospace; font-size: 12px; background: var(--bg); padding: 1px 4px; border-radius: 4px; }
 
-@media (max-width: 1150px) { .app { grid-template-columns: 260px minmax(0, 1fr) 250px; } .clock { font-size: 52px; } }
+@media (max-width: 1150px) { .app { --lw: 260px; --rw: 250px; } body.lcol .app { --lw: 42px; } body.rcol .app { --rw: 42px; } .clock { font-size: 52px; } }
 
 /* lane editor */
 .pop.wide { min-width: 330px; max-width: 360px; }
@@ -227,3 +229,57 @@ code { font-family: Consolas, monospace; font-size: 12px; background: var(--bg);
 /* Share dialog */
 .dlg .sharebox { display: flex; gap: 8px; margin: 8px 0; }
 .dlg .sharebox input { flex: 1; min-height: 34px; font: 600 14px var(--ui); }
+
+/* With the city plan under the board: lanes become a street-wide tint, district washes go. */
+.lane-tint { display: none; }
+body.has-plan .lane-tint { display: inline; }
+body.has-plan .lane-road, body.has-plan .L-bg .tint { display: none; }
+body.has-plan .L-labels text { fill-opacity: .2; }
+
+/* Side tabs, collapsing sides and sections */
+.sidetabs { display: flex; gap: 4px; position: sticky; top: -12px; z-index: 2; background: #0b1117; margin: -12px -12px 0; padding: 8px 10px; border-bottom: 1px solid var(--ln); }
+.sidetabs button { flex: 1; min-height: 32px; border-radius: 9px; border: 1px solid var(--ln); background: var(--pn2); font-weight: 700; font-size: 13px; color: var(--mu); }
+.sidetabs button.on { color: var(--ink); border-color: var(--acc); background: #12222a; }
+.sidetabs .collapse { flex: 0 0 34px; color: var(--mu); }
+.sidetabs .cnt:not(:empty) { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--acc); color: #04161b; font-size: 11px; }
+.tabpane { display: flex; flex-direction: column; gap: 12px; }
+.tabpane[hidden] { display: none; }
+aside.side.collapsed { padding: 8px 4px; overflow: hidden; }
+aside.side.collapsed .tabpane { display: none; }
+aside.side.collapsed .sidetabs { flex-direction: column; margin: -8px -4px 0; padding: 6px 4px; border: 0; position: static; }
+aside.side.collapsed .sidetabs button { writing-mode: vertical-rl; flex: 0 0 auto; min-height: 90px; padding: 8px 0; }
+aside.side.collapsed .sidetabs .collapse { writing-mode: horizontal-tb; min-height: 32px; order: -1; }
+.panel h3 { cursor: pointer; user-select: none; }
+.panel h3::before { content: '▾'; color: var(--mu); font-size: 12px; margin-right: 2px; transition: transform .15s; }
+.panel.shut h3::before { transform: rotate(-90deg); }
+.panel.shut h3 { margin-bottom: 0; }
+.panel.shut > :not(h3) { display: none !important; }
+.panel h3 { justify-content: flex-start; }
+.panel h3 small { margin-left: auto; }
+/* Dragging a map marker onto a side */
+.dragghost { position: fixed; z-index: 50; pointer-events: none; display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-radius: 10px; background: #0f161eee; border: 1px solid var(--acc); font-weight: 700; font-size: 13px; transform: translate(12px, 12px); box-shadow: 0 6px 20px #0008; }
+.dragghost svg { width: 22px; height: 22px; }
+body.mkdrag aside.side { outline: 2px dashed #4fe3ff66; outline-offset: -4px; }
+body.mkdrag aside.side.over { outline-color: var(--acc); background: #0e1c22; }
+.droptip { font-size: 12.5px; color: var(--mu); margin: 0; line-height: 1.45; }
+.pins { display: flex; flex-direction: column; gap: 10px; }
+.pin { background: var(--pn); border: 1px solid var(--ln); border-radius: 12px; padding: 10px; }
+.pin header { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; cursor: pointer; }
+.pin header svg { width: 22px; height: 22px; }
+.pin header b { display: block; font-size: 14px; }
+.pin header small { display: block; font-size: 11.5px; }
+.pin header .pa { display: flex; gap: 4px; }
+.pin header .pa button { min-width: 28px; min-height: 28px; border-radius: 7px; border: 1px solid var(--ln); background: var(--pn2); font-size: 13px; }
+.pin .pin-body { margin-top: 8px; font-size: 13px; line-height: 1.5; }
+.pin .pin-body .big { font: 800 22px var(--disp); }
+.pin.shut .pin-body { display: none; }
+.pin .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pin .acts button { min-height: 30px; border-radius: 8px; border: 1px solid var(--ln); background: var(--pn2); padding: 0 10px; font-weight: 600; font-size: 12.5px; }
+.pin .acts button.primary { background: var(--acc); color: #04161b; border-color: var(--acc); }
+.hero-ring { vector-effect: non-scaling-stroke; pointer-events: none; }
+.hero-ring-label { pointer-events: none; }
+/* Help: one box per topic, the first ones open */
+.dlg details.help { border: 1px solid var(--ln); border-radius: 12px; padding: 0 12px; margin: 8px 0; background: var(--pn); }
+.dlg details.help > summary { cursor: pointer; font: 700 15px var(--disp); padding: 10px 0; list-style-position: inside; }
+.dlg details.help[open] > summary { border-bottom: 1px solid var(--ln); margin-bottom: 6px; }
+.dlg details.help > :not(summary) { margin-bottom: 10px; }

@@ -34,7 +34,13 @@
 </header>
 
 <div class="app">
-  <aside class="left">
+  <aside class="left side" data-side="left">
+    <nav class="sidetabs" role="tablist" aria-label="Left side">
+      <button data-tab="board" role="tab" title="Clock, what's coming up and lane states">Timers</button>
+      <button data-tab="details" role="tab" title="Details you dragged here from the map">Details <span class="cnt"></span></button>
+      <button class="collapse" title="Collapse this side" aria-label="Collapse left side">«</button>
+    </nav>
+    <div class="tabpane" data-pane="board">
     <section class="clockbox">
       <div class="mode" role="group" aria-label="Mode">
         <button data-mode="real" class="on" title="Use alongside a real match: start the clock when the match starts">Real match</button>
@@ -57,15 +63,17 @@
       <input id="scrub" type="range" min="0" max="3600" step="1" value="0" aria-label="Match time">
     </section>
 
-    <section class="panel">
+    <section class="panel" data-sec="upcoming">
       <h3>Coming up</h3>
       <ol id="upcoming" class="upcoming"></ol>
     </section>
 
-    <section class="panel">
+    <section class="panel" data-sec="lanes">
       <h3>Lanes</h3>
       <div id="lanePanel"></div>
     </section>
+    </div>
+    <div class="tabpane" data-pane="details" hidden><div class="pins"></div><p class="droptip">Drag anything from the map onto this side to keep its details here: camps, objectives, the urn, boxes.</p></div>
   </aside>
 
   <main class="mapwrap" id="mapwrap">
@@ -80,20 +88,28 @@
     </div>
   </main>
 
-  <aside class="right">
-    <section class="panel" id="statusPanel">
+  <aside class="right side" data-side="right">
+    <nav class="sidetabs" role="tablist" aria-label="Right side">
+      <button class="collapse" title="Collapse this side" aria-label="Collapse right side">»</button>
+      <button data-tab="board" role="tab" title="Match status, heroes and the selected thing">Match</button>
+      <button data-tab="details" role="tab" title="Details you dragged here from the map">Details <span class="cnt"></span></button>
+    </nav>
+    <div class="tabpane" data-pane="board">
+    <section class="panel" id="statusPanel" data-sec="match">
       <h3>Match</h3>
       <div id="matchStatus"></div>
     </section>
-    <section class="panel">
-      <h3>Heroes <small>drag on the map · double-click to change</small></h3>
+    <section class="panel" data-sec="heroes">
+      <h3>Heroes <small>drag · right-click for range circle</small></h3>
       <div id="lineup" class="lineup"></div>
       <button id="btnResetHeroes" class="small">Put heroes back in lane</button>
     </section>
-    <section class="panel" id="inspector">
+    <section class="panel" id="inspector" data-sec="selected">
       <h3>Selected</h3>
       <div id="inspect" class="muted">Click anything on the map.</div>
     </section>
+    </div>
+    <div class="tabpane" data-pane="details" hidden><div class="pins"></div><p class="droptip">Drag anything from the map onto this side to keep its details here: camps, objectives, the urn, boxes.</p></div>
   </aside>
 </div>
 

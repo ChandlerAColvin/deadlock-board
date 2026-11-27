@@ -20,7 +20,7 @@
     camp_small: '<path d="M0,-11L11,8H-11Z" fill="#3fd6c6" stroke="#05080b" stroke-width="1.6"/>',
     camp_medium: '<path d="M0,-13L11,5H-11Z" fill="#3fd6c6" stroke="#05080b" stroke-width="1.6"/><path d="M-10,10H10" stroke="#3fd6c6" stroke-width="3"/>',
     camp_large: '<path d="M0,-15L11,3H-11Z" fill="#3fd6c6" stroke="#05080b" stroke-width="1.6"/><path d="M-10,8H10M-10,13H10" stroke="#3fd6c6" stroke-width="3"/>',
-    sinners: '<rect x="-9" y="-13" width="18" height="26" rx="4" fill="#d29b3c" stroke="#05080b" stroke-width="1.6"/><rect x="-6" y="-8" width="12" height="7" rx="1.5" fill="#24170a"/><text y="10" text-anchor="middle" font-size="10" font-weight="800" fill="#24170a">$</text>',
+    sinners: '<rect x="-9" y="-13" width="18" height="26" rx="4" fill="#ffc93a" stroke="#05080b" stroke-width="1.6"/><rect x="-6" y="-8" width="12" height="7" rx="1.5" fill="#24170a"/><text y="10" text-anchor="middle" font-size="10" font-weight="800" fill="#24170a">$</text>',
     urn_spawn: '<path d="M-6,-13H6V-10C12,-6 12,8 5,13H-5C-12,8 -12,-6 -6,-10Z" fill="#8ef0ff" stroke="#05080b" stroke-width="1.6"/><path d="M-6,-2H6" stroke="#05080b" stroke-width="1.5" opacity=".5"/>',
     urn_dropoff: '<circle r="13" fill="none" stroke="#8ef0ff" stroke-width="2.4" stroke-dasharray="4 3"/><path d="M0,-8V5M-5,1L0,7L5,1" stroke="#8ef0ff" stroke-width="2.6" fill="none" stroke-linecap="round"/>',
     powerup: '<path d="M0,-14L14,0L0,14L-14,0Z" fill="#4fe3ff" stroke="#05080b" stroke-width="1.6"/><path d="M0,-6L6,0L0,6L-6,0Z" fill="#05191d"/>',
@@ -141,6 +141,10 @@
         const b = api.bgImage();
         el('image', { href: b.src, x: b.x || 0, y: b.y || 0, width: (b.scale || 1) * 1000, height: (b.scale || 1) * 1000, opacity: b.opacity ?? 0.5, preserveAspectRatio: 'none', transform: flip ? 'rotate(180 500 500)' : '' }, L.bg);
       }
+      // City plan drawn from the game's navigation mesh (tools/render_map.py): streets, buildings and roofs at true
+      // scale. It lines up with the markers exactly (same world-to-map scale), and flips with the board.
+      const plan = el('image', { href: 'assets/map-base.png', x: 0, y: 0, width: 1000, height: 1000, class: 'cityplan', preserveAspectRatio: 'none', transform: flip ? 'rotate(180 500 500)' : '' }, L.bg);
+      plan.style.imageRendering = 'auto';
       // Soft colour washes so districts read at a glance (park green, docks water, team bases).
       const TINT = { 'Central Park': '#2f9e57', Docks: '#2a6f9e', 'Haunted Lot': '#7a4bb5', Chinatown: '#b53a3a', Theater: '#a8325e', Plaza: '#5a7da8',
         Campus: '#8a6a3a', Factory: '#a8552a', 'Stock Exchange': '#a8902a', 'Times Square': '#2aa8a8', 'Hidden King': '#f0a63c', Archmother: '#5b93f0',
@@ -150,7 +154,7 @@
         if (!c) continue;
         const id = 'tint-' + l.text.replace(/\W/g, '');
         if (!defs.querySelector('#' + id)) defs.insertAdjacentHTML('beforeend', `<radialGradient id="${id}"><stop offset="0" stop-color="${c}" stop-opacity=".2"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></radialGradient>`);
-        el('circle', { cx: X(l.u), cy: Y(l.v), r: l.tier === 0 ? 120 : 95, fill: `url(#${id})` }, L.bg);
+        el('circle', { cx: X(l.u), cy: Y(l.v), r: l.tier === 0 ? 120 : 95, fill: `url(#${id})`, class: 'tint' }, L.bg);
       }
       L.labels.innerHTML = '';
       for (const l of MAP.labels) {
@@ -163,8 +167,11 @@
       for (const l of MAP.lanes) {
         const d = 'M' + l.path.map(p => X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join('L');
         const color = (G.lanes[l.key] || {}).color || l.color;
-        el('path', { d, fill: 'none', stroke: color, 'stroke-opacity': 0.22, 'stroke-width': 30, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, L.roads);
-        el('path', { d, fill: 'none', stroke: '#141d26', 'stroke-width': 22, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, L.roads);
+        // Without the city plan the lane is drawn as a road; with it, only a street-wide tint (about 9 m) so the real
+        // street and the buildings beside it stay visible.
+        el('path', { d, fill: 'none', stroke: color, 'stroke-opacity': 0.22, 'stroke-width': 30, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', class: 'lane-road' }, L.roads);
+        el('path', { d, fill: 'none', stroke: '#141d26', 'stroke-width': 22, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', class: 'lane-road' }, L.roads);
+        el('path', { d, fill: 'none', stroke: color, 'stroke-opacity': 0.14, 'stroke-width': 14, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', class: 'lane-tint' }, L.roads);
         el('path', { d, fill: 'none', stroke: color, 'stroke-opacity': 0.55, 'stroke-width': 1.2, 'stroke-dasharray': '2 6' }, L.roads);
       }
       for (const z of MAP.ziplines) {
@@ -295,7 +302,7 @@
         if (TIMED.includes(k) || k === 'midboss') {
           // 669 crates and buff containers: keep them quiet so camps and objectives stand out.
           if (k === 'crate' || k === 'buff_box') opacity = st.up ? 0.6 : 0.14;
-          else if (!st.up) opacity = k === 'heavy_crate' ? 0.2 : 0.26;
+          else if (!st.up) opacity = k === 'heavy_crate' ? 0.2 : k === 'sinners' ? 0.5 : 0.26;
           // Box brightness (Map layers): scales every crate and buff container, glowing when turned up.
           if (BOXES.includes(k)) opacity = Math.min(1, opacity * boxLevel);
           if (!st.up) {
@@ -312,7 +319,8 @@
           if (st.up) { text = 'BUFF'; ring = 2; ringColor = '#4fe3ff'; }
           else { opacity = 0.3; const left = st.nextAt - t; if (left <= 60) text = DLB_ENGINE.fmt(left); if (left <= lead) ring = 1; }
         } else if (k === 'urn_spawn') {
-          if (st.up) { text = st.landing ? 'URN LANDING' : 'URN?'; ring = 2; ringColor = '#8ef0ff'; }
+          if (st.up) { text = st.landing ? 'URN LANDING' : st.walking ? 'URN WALKING' : 'URN HERE'; ring = 2; ringColor = '#8ef0ff'; }
+          else if (st.deliver) { text = 'DELIVER HERE'; ring = 2; ringColor = '#ffd36e'; opacity = 0.85; }
           else {
             opacity = 0.35;
             const left = st.nextAt - t;
@@ -349,6 +357,15 @@
     view.drawHeroes = function (heroes, selected) {
       L.heroes.innerHTML = '';
       const G = GAME();
+      // Distance circles first, so every token sits above every circle. Radius is true distance on the map.
+      heroes.forEach(h => {
+        if (!h.ring || h.dead) return;
+        const color = G.teams[h.team].color;
+        const r = view.metersToMap(h.ring);
+        el('circle', { class: 'hero-ring', cx: X(h.u).toFixed(1), cy: Y(h.v).toFixed(1), r: r.toFixed(1), fill: color, 'fill-opacity': 0.06, stroke: color, 'stroke-opacity': 0.85, 'stroke-width': 1.6, 'stroke-dasharray': '6 4' }, L.heroes);
+        const lab = el('text', { class: 'hero-ring-label', x: X(h.u).toFixed(1), y: (Y(h.v) - r - 3).toFixed(1), 'text-anchor': 'middle', 'font-size': (11 * iconK).toFixed(1), 'font-weight': 800, fill: color, stroke: '#05080b', 'stroke-width': 3 * iconK, 'paint-order': 'stroke' }, L.heroes);
+        lab.textContent = h.ring + ' m';
+      });
       heroes.forEach((h, i) => {
         const team = G.teams[h.team];
         const g = el('g', { class: 'hero', 'data-hero': i, transform: `translate(${X(h.u).toFixed(1)},${Y(h.v).toFixed(1)}) scale(${iconK.toFixed(3)})`, style: 'cursor:grab' }, L.heroes);
@@ -428,7 +445,7 @@
         // How far the lane is pushed: each team's colour from its own base up to where the waves meet.
         for (const [team, s0, s1] of [['amber', 0, fronts[key]], ['sapphire', fronts[key], 1]]) {
           if (Math.abs(s1 - s0) < 0.002) continue;
-          el('path', { d: line(view.laneSubPath(key, s0, s1)), fill: 'none', stroke: G.teams[team].color, 'stroke-opacity': 0.35, 'stroke-width': 10, 'stroke-linecap': 'butt', 'stroke-linejoin': 'round' }, L.push);
+          el('path', { d: line(view.laneSubPath(key, s0, s1)), fill: 'none', stroke: G.teams[team].color, 'stroke-opacity': 0.35, 'stroke-width': 8, 'stroke-linecap': 'butt', 'stroke-linejoin': 'round' }, L.push);
         }
         // Troopers held at the front, when set in the lane editor.
         const tc = troops[key] || {};
@@ -575,6 +592,9 @@
       else if (drag.type === 'marker' && drag.god) {
         const r = markerEls.get(drag.id);
         if (r) { r.m.u = u; r.m.v = v; r.g.setAttribute('transform', `translate(${X(u).toFixed(1)},${Y(v).toFixed(1)}) scale(${iconK.toFixed(3)})`); }
+      } else if (drag.type === 'marker' && api.markerDragMove) {
+        // Outside god mode a marker can be dragged off the map onto a side panel to pin its details there.
+        api.markerDragMove(drag.id, e.clientX, e.clientY);
       } else if (drag.type === 'draw') {
         drag.pts.push([u, v]);
         drag.path.setAttribute('d', 'M' + drag.pts.map(q => X(q[0]).toFixed(1) + ',' + Y(q[1]).toFixed(1)).join('L'));
@@ -590,6 +610,7 @@
       if (d.type === 'hero') { if (!d.moved) api.heroClick(d.i, e); else api.heroDropped(d.i); }
       else if (d.type === 'marker') {
         if (d.moved && d.god) { const r = markerEls.get(d.id); api.markerMoved(d.id, r.m.u, r.m.v); }
+        else if (d.moved && api.markerDragEnd) api.markerDragEnd(d.id, e.clientX, e.clientY);
         else api.markerClick(d.id, e);
       } else if (d.type === 'front') { if (d.moved) api.frontDropped(d.lane); }
       else if (d.type === 'draw') { if (d.pts.length > 1) api.drawDone(d.pts); else d.path.remove(); }

@@ -5,16 +5,18 @@
   const AFTER_CLEAR = ['camp_small', 'camp_medium', 'camp_large', 'sinners', 'snack', 'crate', 'heavy_crate', 'buff_box'];
 
   // Board markers = generated map points + extra data (heavy crates, vents, camp names) + god mode edits.
-  function mergeMarkers(points, extra, ov) {
+  function mergeMarkers(points, extra, ov, fixes) {
     ov = ov || {};
-    const removed = new Set(ov.removed || []);
+    fixes = fixes || {};
+    const removed = new Set([...(ov.removed || []), ...(fixes.retired || [])]);
+    const kindFix = fixes.kind || {};
     const edits = ov.markers || {};
     const ex = (extra && extra.markers) || {};
     const list = [];
     for (const p of points) {
       const [id, kind, u, v, z, team, lane, area, camp, side] = p;
       if (removed.has(id)) continue;
-      list.push(Object.assign({ id, kind, u, v, z: z || 0, team, lane, area, camp, side }, ex[id] || {}, edits[id] || {}));
+      list.push(Object.assign({ id, kind: kindFix[id] || kind, u, v, z: z || 0, team, lane, area, camp, side }, ex[id] || {}, edits[id] || {}));
     }
     for (const a of (extra && extra.added) || []) if (!removed.has(a.id)) list.push(Object.assign({ z: 0 }, a, edits[a.id] || {}));
     for (const a of ov.added || []) if (!removed.has(a.id)) list.push(Object.assign({}, a, edits[a.id] || {}));
@@ -262,7 +264,9 @@
         const u = this.urnState(t);
         const s = this.game.spawns.urn_spawn;
         const nextN = u.n + 1;
-        return { up: u.up && u.side === e.m.side, landing: u.landing && u.side === e.m.side, nextAt: s.first + nextN * s.every, nextSide: s.sides[nextN % s.sides.length] };
+        // The site on the other side is where this urn gets delivered.
+        return { up: u.up && u.side === e.m.side, landing: u.landing && u.side === e.m.side, deliver: u.up && u.side !== e.m.side,
+          walking: u.up && u.side === e.m.side && t >= u.occ + (s.walksAfter || 1e9), nextAt: s.first + nextN * s.every, nextSide: s.sides[nextN % s.sides.length] };
       }
       if (k === 'rift') {
         const r = this.riftState(t);

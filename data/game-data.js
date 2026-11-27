@@ -16,6 +16,7 @@ window.DLB_GAME = {
   },
 
   changelog: [
+    { date: '2026-11-27', note: 'Soul Urn: two sites by the side-lane bridges (June 30, 2026 rework). It spawns at one and is delivered to the other; the 4 older comeback pickup spots are gone. 250 souls + 70/min, walks off on its own after 3:00, decays from 45 s after pickup (deadlock.wiki/Soul_Urn).' },
     { date: '2026-11-27', note: 'Hero death timers: respawn curve 8 s to 5:00, 38 s at 20:00, 70 s at 30:00, 85 s at 40:00, cap 90 s, +10 s to troopers/objectives (deadlock.wiki/Death). Rejuvenator gives 3 revive tokens for 180 s.' },
     { date: '2026-11-27', note: 'Checked against POSHYPOP (Oct 25 data): all 36 healing bats and 40 camps line up; 74 heavy crates marked; 46 steam vents added. Healing bats heal 14% over 4 s, 3.5 m pickup. Haunt souls 43/71/189 per creature (+1.08%/min).' },
     { date: '2026-11-27', note: 'First version. Timings from the game data on deadlock.wiki (Deadbot, 2026-11-27) and the metabot.gg map (build 26472578). Healing snack respawn set to 120 s per the Nov 26 patch.' },
@@ -86,7 +87,12 @@ window.DLB_GAME = {
     powerup:     { label: 'Bridge buffs', voice: 'Bridge buffs', short: 'Buffs', first: 300, every: 300, buffSeconds: 160 },
     // Soul Urn: 10:00 then every 5:00 (convars citadel_crate_spawn_initial_delay / respawn_interval),
     // York side first, then alternating. Takes 12.5 s to descend.
-    urn_spawn:   { label: 'Soul Urn', voice: 'Soul Urn', short: 'Urn', first: 600, every: 300, sides: ['york', 'greenwich'], descend: 12.5 },
+    // June 30, 2026: one site at each end of the map (by the York and Greenwich bridges); the urn spawns at one and
+    // is delivered to the other. Worth 250 souls + 70 a minute (locked in when it spawns). Left alone for 3:00 it
+    // starts walking toward the drop-off by itself. 45 s after pickup its value starts draining over another 45 s.
+    // Picking it up holds back the next spawn until it is delivered or runs out (deadlock.wiki/Soul_Urn).
+    urn_spawn:   { label: 'Soul Urn', voice: 'Soul Urn', short: 'Urn', first: 600, every: 300, sides: ['york', 'greenwich'], descend: 12.5,
+                   souls: 250, soulsPerMin: 70, walksAfter: 180, decayAfter: 45, decaySeconds: 45 },
     // Mid-Boss: up from the start; respawns 7:00 after the 1st death, 6:00 after the 2nd, 5:00 after later ones.
     midboss:     { label: 'Mid-Boss', voice: 'Mid-Boss', short: 'Mid-Boss', first: 0, respawnSeq: [420, 360, 300] },
     // Unstable Rift: convars citadel_koth_spawn_initial_delay 720, spawn_window 60, respawn_interval 420,
@@ -108,6 +114,14 @@ window.DLB_GAME = {
     { name: 'Sunken Plaza', match: { area: 'Sunken Plaza' }, first: 300, respawn: 180 },
     { name: 'Tunnels', match: { zMax: -1 }, first: 300, respawn: 300 },
   ],
+
+  // Corrections to the datamined marker list (data/map-data.js is generated, so fixes live here).
+  // The metabot map still lists the 4 old comeback urn pickup spots (retired June 30, 2026); the two "drop-off"
+  // markers are the current urn sites, each both a spawn and the other side's drop-off.
+  mapFixes: {
+    retired: ['urn_spawn-pos4', 'urn_spawn-pos5', 'urn_spawn-pos6', 'urn_spawn-pos7'],
+    kind: { 'urn_dropoff--6592_-8': 'urn_spawn', 'urn_dropoff-6304_-96': 'urn_spawn' },
+  },
 
   // One-off moments worth a heads-up.
   events: [

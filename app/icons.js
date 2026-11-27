@@ -47,7 +47,9 @@
       camp_medium: camp(1),
       camp_large: camp(2),
       // Sinner's Sacrifice: a grey machine with a dial.
-      sinners: `<rect x="-9.5" y="-9.5" width="19" height="19" rx="4.5" fill="#c3ccd0" ${O}/><circle r="5.4" fill="none" stroke="#1a2025" stroke-width="2.2"/><circle r="1.9" fill="#1a2025"/>`,
+      // Sinner's Sacrifice: bright gold so the soul machines stand out from camps and boxes.
+      sinners: `<defs><linearGradient id="dlb-sin" x1="0" y1="-10" x2="0" y2="10" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff27a"/><stop offset="1" stop-color="#ffab1f"/></linearGradient></defs>` +
+        `<rect x="-10.5" y="-10.5" width="21" height="21" rx="5" fill="#ffcf3a" opacity=".35"/><rect x="-9.5" y="-9.5" width="19" height="19" rx="4.5" fill="url(#dlb-sin)" ${O}/><circle r="5.4" fill="none" stroke="#3a1d00" stroke-width="2.2"/><circle r="1.9" fill="#3a1d00"/>`,
       // Soul Urn: a teal urn.
       urn_spawn: '<defs><linearGradient id="dlb-urn" x1="0" y1="-14" x2="0" y2="14" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6ff6ff"/><stop offset="1" stop-color="#0b7d91"/></linearGradient></defs>' +
         `<path d="M-4.6,-14H4.6V-11.2L3.6,-9.4C9.8,-6.4 10.2,5.6 5,11.6V14H-5V11.6C-10.2,5.6 -9.8,-6.4 -3.6,-9.4L-4.6,-11.2Z" fill="url(#dlb-urn)" ${O}/><path d="M-6.4,-3H6.4" stroke="#05080b" stroke-width="1.2" opacity=".45"/>`,
@@ -83,7 +85,7 @@
     // Base size of each icon in map units at full-map zoom. Camps are smaller, like the in-game minimap.
     sizes: {
       guardian: 34, walker: 40, base_guardian: 24, shrine: 28, patron: 40, midboss: 40, spawn: 18,
-      camp_small: 17, camp_medium: 19, camp_large: 21, sinners: 18, urn_spawn: 26, urn_dropoff: 24, powerup: 26,
+      camp_small: 17, camp_medium: 19, camp_large: 21, sinners: 21, urn_spawn: 26, urn_dropoff: 24, powerup: 26,
       rift: 30, snack: 13, crate: 7, heavy_crate: 11, buff_box: 8, vent: 12, shop: 20, teleporter: 19, rope: 11, bell: 13,
     },
   };
