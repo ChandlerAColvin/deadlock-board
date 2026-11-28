@@ -1420,6 +1420,8 @@
       <h3>Other</h3>
       <div class="grid2">
         <label class="chk"><input type="checkbox" data-s="plan" ${ss.plan !== false ? 'checked' : ''}> City plan (streets, buildings)</label>
+        <label class="chk"><input type="checkbox" data-s="indoor" ${ss.indoor !== false ? 'checked' : ''}> Indoor areas (warm)</label>
+        <label class="chk"><input type="checkbox" data-s="doors" ${ss.doors !== false ? 'checked' : ''}> Entrances and exits</label>
         <label class="chk"><input type="checkbox" data-s="heights" ${ss.heights ? 'checked' : ''}> Roof and tunnel shading</label>
         <label class="chk"><input type="checkbox" data-s="labels" ${ss.labels ? 'checked' : ''}> Place names</label>
         <label class="chk"><input type="checkbox" data-s="lanes" ${ss.lanes ? 'checked' : ''}> Lanes</label>
@@ -1464,6 +1466,8 @@
       plan.style.display = ss.plan === false ? 'none' : '';
       document.body.classList.toggle('has-plan', ss.plan !== false);
       document.body.classList.toggle('shade-heights', !!ss.heights);
+      document.body.classList.toggle('no-indoor', ss.indoor === false);
+      document.body.classList.toggle('no-doors', ss.doors === false);
       document.body.classList.toggle('no-zips', !ss.zips);
       const k = S.settings.planLevel;
       plan.style.opacity = Math.min(1, k);
@@ -1495,7 +1499,8 @@
 
       <details class="help" open><summary>3. Reading the map</summary>
       <ul class="help">
-        <li>The city is drawn from the level's own walls, cut at head height, at true scale: <b>dark</b> is ground, <b>slate</b> is buildings and walls, and gaps in a wall are doorways. Carts, stalls and other small things are left out, so walls look as flat as they are. <b>Layers → Roof and tunnel shading</b> adds a faint tint for upper floors and below-street areas.</li>
+        <li>The city is drawn from the level's own walls, cut at head height, at true scale. <b>Slate</b> is walls, buildings and solid blocks. <b>Warm brown</b> is inside a building. <b>Dark blue-grey</b> is outside: streets, alleys, yards. A <b>sand-coloured line</b> on the edge of an indoor area is a way in or out. Carts, stalls and other small things are left out, so walls look as flat as they are.</li>
+        <li>Indoor areas and entrances are worked out from the level's geometry, so an odd spot (a covered walkway, a half-open yard) can read wrong, and ways in through a window or from a roof aren't marked. Both can be switched off in <b>Layers</b>, which also has a faint tint for upper floors and below-street areas.</li>
         <li>Each lane has two lines on the game's own curves: the thin one is its <b>zipline</b>, the soft band is the <b>street the troopers walk</b>. The band shows how far each side has pushed (your push in the lane's colour, theirs in red, like the in-game map), and the crossed swords are where the waves meet.</li>
         <li>Icons follow the in-game minimap. Your structures are lane-coloured, enemy ones red. Sinner's Sacrifice is electric cyan. Faded icons aren't up yet, and boxes and healing bats stay grey until they spawn.</li>
         <li><b>Layers</b> turns any of this on or off, and sets the brightness of the city plan and the boxes.</li>

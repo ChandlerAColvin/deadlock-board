@@ -303,6 +303,10 @@ body.mkdrag aside.side.over { outline-color: var(--acc); background: #0e1c22; }
 .cityplan path { vector-effect: non-scaling-stroke; stroke-linejoin: miter; stroke-miterlimit: 3; }
 .cp-ground { fill: #131a22; stroke: #273341; stroke-width: 1; }
 .cp-walls { fill: #2b3947; stroke: #52677c; stroke-width: .8; }
+/* Indoors is warm, outdoors stays the cool ground tone; entrances are a soft sand line across each way in. */
+.cp-indoor { fill: #332b21; stroke: none; }
+.cityplan path.cp-doors { fill: none; stroke: #e8bf7e; stroke-width: 2px; stroke-opacity: .78; stroke-linecap: round; stroke-linejoin: round; }
+body.no-indoor .cp-indoor, body.no-doors .cp-doors { display: none; }
 /* Optional roof and tunnel shading (Map layers), off unless asked for. */
 .cp-roofs { fill: #cfe2f5; fill-opacity: .07; stroke: none; display: none; }
 .cp-tunnels { fill: #000; fill-opacity: .35; stroke: none; display: none; }

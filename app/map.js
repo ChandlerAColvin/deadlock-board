@@ -147,7 +147,7 @@
       const P = window.DLB_PLAN;
       if (P) {
         const plan = el('g', { class: 'cityplan', transform: flip ? 'rotate(180 500 500)' : '' }, L.bg);
-        for (const name of ['ground', 'tunnels', 'walls', 'roofs']) {
+        for (const name of ['ground', 'tunnels', 'indoor', 'walls', 'roofs', 'doors']) {
           if (P.layers[name]) el('path', { d: P.layers[name], class: 'cp-' + name, 'fill-rule': 'evenodd' }, plan);
         }
       }
