@@ -238,11 +238,18 @@ code { font-family: Consolas, monospace; font-size: 12px; background: var(--bg);
 .dlg .sharebox { display: flex; gap: 8px; margin: 8px 0; }
 .dlg .sharebox input { flex: 1; min-height: 34px; font: 600 14px var(--ui); }
 
-/* With the city plan under the board: lanes become a street-wide tint, district washes go. */
-.lane-tint { display: none; }
-body.has-plan .lane-tint { display: inline; }
-body.has-plan .lane-road, body.has-plan .L-bg .tint { display: none; }
-body.has-plan .L-labels text { fill-opacity: .2; }
+/* Lanes. With the city plan under the board the soft push band is the lane; the thin zipline names it. If ziplines
+   are switched off, a thin line in the lane's colour takes over. Without the plan, lanes are drawn as roads. */
+.zipline { vector-effect: non-scaling-stroke; stroke-width: 1.8px; stroke-opacity: .9; }
+/* Boxes and bats that aren't up yet are neutral grey, so the map only has colour where something is there. Turning
+   box brightness past 150% (Map layers) keeps their colours. */
+.mk.waiting.k-crate use, .mk.waiting.k-heavy_crate use, .mk.waiting.k-buff_box use, .mk.waiting.k-snack use { filter: grayscale(1) brightness(1.15); }
+svg.box-glow .mk.waiting.k-crate use, svg.box-glow .mk.waiting.k-heavy_crate use, svg.box-glow .mk.waiting.k-buff_box use { filter: drop-shadow(0 0 3px #ffe7a8); }
+.tele-link { stroke: #9d86c9; stroke-opacity: .34; stroke-width: 1px; stroke-dasharray: 3 6; vector-effect: non-scaling-stroke; }
+.lane-center { vector-effect: non-scaling-stroke; stroke-width: 1.4px; stroke-opacity: .55; stroke-dasharray: 2 6; }
+body.has-plan .lane-road, body.has-plan .L-bg .tint, body.has-plan .lane-center, body.has-plan .bg-grid { display: none; }
+body.has-plan.no-zips .lane-center { display: inline; stroke-dasharray: none; stroke-opacity: .85; }
+body.has-plan .L-labels text { fill-opacity: .17; }
 
 /* Side tabs, collapsing sides and sections */
 .sidetabs { display: flex; gap: 4px; position: sticky; top: -12px; z-index: 2; background: #0b1117; margin: -12px -12px 0; padding: 8px 10px; border-bottom: 1px solid var(--ln); }
@@ -292,13 +299,14 @@ body.mkdrag aside.side.over { outline-color: var(--acc); background: #0e1c22; }
 .dlg details.help[open] > summary { border-bottom: 1px solid var(--ln); margin-bottom: 6px; }
 .dlg details.help > :not(summary) { margin-bottom: 10px; }
 
-/* City plan: dark streets, solid buildings with crisp edges, roofs lighter. Strokes stay 1 px at any zoom. */
-.cityplan path { vector-effect: non-scaling-stroke; stroke-linejoin: miter; }
-.cp-city { fill: #19232d; stroke: #3d4f61; stroke-width: 1.4; }
-.cp-low { fill: #0f151c; stroke: #0a0e13; stroke-width: 1; }
-.cp-building { fill: #2f3c4a; stroke: #6c8298; stroke-width: 1; }
-.cp-raised { fill: #3f5163; stroke: #8aa2ba; stroke-width: .9; }
-.cp-high { fill: #4c6177; stroke: #a5bccf; stroke-width: .9; }
+/* City plan: two tones only, a dark ground and one building tone with a crisp 1 px edge at any zoom. */
+.cityplan path { vector-effect: non-scaling-stroke; stroke-linejoin: miter; stroke-miterlimit: 3; }
+.cp-ground { fill: #131a22; stroke: #273341; stroke-width: 1; }
+.cp-walls { fill: #2b3947; stroke: #52677c; stroke-width: .8; }
+/* Optional roof and tunnel shading (Map layers), off unless asked for. */
+.cp-roofs { fill: #cfe2f5; fill-opacity: .07; stroke: none; display: none; }
+.cp-tunnels { fill: #000; fill-opacity: .35; stroke: none; display: none; }
+body.shade-heights .cp-roofs, body.shade-heights .cp-tunnels { display: inline; }
 
 /* Routes tab */
 .routes-pane { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }

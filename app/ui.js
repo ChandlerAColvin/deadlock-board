@@ -18,6 +18,11 @@
     heavy_crate: 'Heavy crate', buff_box: 'Buff container', vent: 'Steam vent', shop: 'Shop', teleporter: 'Teleporter', rope: 'Rope', bell: 'Bell', spawn: 'Spawn',
   };
   const ALL_KINDS = Object.keys(KIND_LABEL);
+  // The game's own lane and zipline curves (data/game-ents.js) replace the straight-segment lines in map-data.js, so
+  // lanes, troopers, wave fronts and distances all follow the exact, smooth paths.
+  const GEO = window.DLB_ENTS || {};
+  if (GEO.lanes) for (const l of DLB_MAP.lanes) if (GEO.lanes[l.key]) l.path = GEO.lanes[l.key];
+  if (GEO.ziplines) DLB_MAP.ziplines = DLB_MAP.ziplines.map(z => (GEO.ziplines[z.lane] ? { lane: z.lane, path: GEO.ziplines[z.lane] } : z));
   const CLEAR_WORD = { snack: 'Picked up', crate: 'Broken', heavy_crate: 'Broken', buff_box: 'Broken', sinners: 'Cleared' };
 
   // ---------- settings and saved edits ----------
@@ -1415,6 +1420,7 @@
       <h3>Other</h3>
       <div class="grid2">
         <label class="chk"><input type="checkbox" data-s="plan" ${ss.plan !== false ? 'checked' : ''}> City plan (streets, buildings)</label>
+        <label class="chk"><input type="checkbox" data-s="heights" ${ss.heights ? 'checked' : ''}> Roof and tunnel shading</label>
         <label class="chk"><input type="checkbox" data-s="labels" ${ss.labels ? 'checked' : ''}> Place names</label>
         <label class="chk"><input type="checkbox" data-s="lanes" ${ss.lanes ? 'checked' : ''}> Lanes</label>
         <label class="chk"><input type="checkbox" data-s="zips" ${ss.zips ? 'checked' : ''}> Ziplines</label>
@@ -1457,6 +1463,8 @@
     if (plan) {
       plan.style.display = ss.plan === false ? 'none' : '';
       document.body.classList.toggle('has-plan', ss.plan !== false);
+      document.body.classList.toggle('shade-heights', !!ss.heights);
+      document.body.classList.toggle('no-zips', !ss.zips);
       const k = S.settings.planLevel;
       plan.style.opacity = Math.min(1, k);
       plan.style.filter = k > 1 ? `brightness(${k})` : '';
@@ -1487,9 +1495,9 @@
 
       <details class="help" open><summary>3. Reading the map</summary>
       <ul class="help">
-        <li>The city is drawn from the game's own navigation data, at true scale. <b>Dark</b>: streets and open ground you can walk. <b>Slate blocks</b>: buildings and walls. <b>Lighter</b>: roofs, balconies and upper floors. <b>Darkest</b>: below the street (tunnels, the Mid-Boss pit).</li>
-        <li>Each lane is a coloured tint along its real street. The team colours on it show how far each side has pushed, and the crossed swords are where the waves meet.</li>
-        <li>Icons follow the in-game minimap. Your structures are lane-coloured, enemy ones red. Sinner's Sacrifice is bright gold. Faded icons aren't up yet.</li>
+        <li>The city is drawn from the level's own walls, cut at head height, at true scale: <b>dark</b> is ground, <b>slate</b> is buildings and walls, and gaps in a wall are doorways. Carts, stalls and other small things are left out, so walls look as flat as they are. <b>Layers → Roof and tunnel shading</b> adds a faint tint for upper floors and below-street areas.</li>
+        <li>Each lane has two lines on the game's own curves: the thin one is its <b>zipline</b>, the soft band is the <b>street the troopers walk</b>. The band shows how far each side has pushed (your push in the lane's colour, theirs in red, like the in-game map), and the crossed swords are where the waves meet.</li>
+        <li>Icons follow the in-game minimap. Your structures are lane-coloured, enemy ones red. Sinner's Sacrifice is electric cyan. Faded icons aren't up yet, and boxes and healing bats stay grey until they spawn.</li>
         <li><b>Layers</b> turns any of this on or off, and sets the brightness of the city plan and the boxes.</li>
       </ul></details>
 

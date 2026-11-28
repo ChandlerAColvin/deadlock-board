@@ -20,7 +20,7 @@
     camp_small: '<path d="M0,-11L11,8H-11Z" fill="#3fd6c6" stroke="#05080b" stroke-width="1.6"/>',
     camp_medium: '<path d="M0,-13L11,5H-11Z" fill="#3fd6c6" stroke="#05080b" stroke-width="1.6"/><path d="M-10,10H10" stroke="#3fd6c6" stroke-width="3"/>',
     camp_large: '<path d="M0,-15L11,3H-11Z" fill="#3fd6c6" stroke="#05080b" stroke-width="1.6"/><path d="M-10,8H10M-10,13H10" stroke="#3fd6c6" stroke-width="3"/>',
-    sinners: '<rect x="-9" y="-13" width="18" height="26" rx="4" fill="#ffc93a" stroke="#05080b" stroke-width="1.6"/><rect x="-6" y="-8" width="12" height="7" rx="1.5" fill="#24170a"/><text y="10" text-anchor="middle" font-size="10" font-weight="800" fill="#24170a">$</text>',
+    sinners: '<rect x="-9" y="-13" width="18" height="26" rx="4" fill="#22e4ff" stroke="#05080b" stroke-width="1.6"/><rect x="-6" y="-8" width="12" height="7" rx="1.5" fill="#24170a"/><text y="10" text-anchor="middle" font-size="10" font-weight="800" fill="#24170a">$</text>',
     urn_spawn: '<path d="M-6,-13H6V-10C12,-6 12,8 5,13H-5C-12,8 -12,-6 -6,-10Z" fill="#8ef0ff" stroke="#05080b" stroke-width="1.6"/><path d="M-6,-2H6" stroke="#05080b" stroke-width="1.5" opacity=".5"/>',
     urn_dropoff: '<circle r="13" fill="none" stroke="#8ef0ff" stroke-width="2.4" stroke-dasharray="4 3"/><path d="M0,-8V5M-5,1L0,7L5,1" stroke="#8ef0ff" stroke-width="2.6" fill="none" stroke-linecap="round"/>',
     powerup: '<path d="M0,-14L14,0L0,14L-14,0Z" fill="#4fe3ff" stroke="#05080b" stroke-width="1.6"/><path d="M0,-6L6,0L0,6L-6,0Z" fill="#05191d"/>',
@@ -125,7 +125,7 @@
     }
     useIconSet(api.iconSet ? api.iconSet() : 'minimap');
     defs.insertAdjacentHTML('beforeend', '<pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M25,0H0V25" fill="none" stroke="#ffffff" stroke-opacity=".035"/></pattern>' +
-      '<marker id="tparrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0L10,5L0,10z" fill="#c77dff"/></marker>');
+      '<marker id="tparrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" fill="#9d86c9" fill-opacity=".55"/></marker>');
     const root = el('g', {}, svg);
     const L = {};
     for (const name of ['bg', 'labels', 'roads', 'push', 'zips', 'tele', 'routes', 'ground', 'mid', 'obj', 'rings', 'troops', 'fronts', 'draw', 'heroes', 'pings']) L[name] = el('g', { class: 'L-' + name }, root);
@@ -136,7 +136,7 @@
 
     function buildStatic() {
       L.bg.innerHTML = '';
-      el('rect', { x: -500, y: -500, width: 2000, height: 2000, fill: 'url(#grid)' }, L.bg);
+      el('rect', { x: -500, y: -500, width: 2000, height: 2000, fill: 'url(#grid)', class: 'bg-grid' }, L.bg);
       if (api.bgImage && api.bgImage()) {
         const b = api.bgImage();
         el('image', { href: b.src, x: b.x || 0, y: b.y || 0, width: (b.scale || 1) * 1000, height: (b.scale || 1) * 1000, opacity: b.opacity ?? 0.5, preserveAspectRatio: 'none', transform: flip ? 'rotate(180 500 500)' : '' }, L.bg);
@@ -147,7 +147,7 @@
       const P = window.DLB_PLAN;
       if (P) {
         const plan = el('g', { class: 'cityplan', transform: flip ? 'rotate(180 500 500)' : '' }, L.bg);
-        for (const name of ['city', 'low', 'building', 'raised', 'high']) {
+        for (const name of ['ground', 'tunnels', 'walls', 'roofs']) {
           if (P.layers[name]) el('path', { d: P.layers[name], class: 'cp-' + name, 'fill-rule': 'evenodd' }, plan);
         }
       }
@@ -164,7 +164,7 @@
       }
       L.labels.innerHTML = '';
       for (const l of MAP.labels) {
-        const t = el('text', { x: X(l.u), y: Y(l.v), 'text-anchor': 'middle', 'font-size': l.tier === 0 ? 17 : 13, 'font-weight': 700, fill: '#ffffff', 'fill-opacity': l.tier === 0 ? 0.16 : 0.12, 'letter-spacing': 1.5 }, L.labels);
+        const t = el('text', { x: X(l.u), y: Y(l.v), 'text-anchor': 'middle', 'font-size': l.tier === 0 ? 17 : 13, 'data-fs': l.tier === 0 ? 17 : 13, 'font-weight': 700, fill: '#ffffff', 'fill-opacity': l.tier === 0 ? 0.16 : 0.12, 'letter-spacing': 1.5 }, L.labels);
         t.textContent = l.text.toUpperCase();
       }
       L.roads.innerHTML = '';
@@ -177,18 +177,17 @@
         // street and the buildings beside it stay visible.
         el('path', { d, fill: 'none', stroke: color, 'stroke-opacity': 0.22, 'stroke-width': 30, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', class: 'lane-road' }, L.roads);
         el('path', { d, fill: 'none', stroke: '#141d26', 'stroke-width': 22, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', class: 'lane-road' }, L.roads);
-        el('path', { d, fill: 'none', stroke: color, 'stroke-opacity': 0.14, 'stroke-width': 14, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', class: 'lane-tint' }, L.roads);
-        el('path', { d, fill: 'none', stroke: color, 'stroke-opacity': 0.55, 'stroke-width': 1.2, 'stroke-dasharray': '2 6' }, L.roads);
+        el('path', { d, fill: 'none', stroke: color, class: 'lane-center' }, L.roads);
       }
       for (const z of MAP.ziplines) {
         const color = (G.lanes[z.lane] || {}).color || '#888';
         const d = 'M' + z.path.map(p => X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join('L');
-        el('path', { d, fill: 'none', stroke: color, 'stroke-width': 2.4, 'stroke-opacity': 0.9, 'stroke-linejoin': 'round', class: 'zipline' }, L.zips);
+        el('path', { d, fill: 'none', stroke: color, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', class: 'zipline' }, L.zips);
       }
       drawRoutes();
       L.tele.innerHTML = '';
       for (const t of MAP.teleports) {
-        el('line', { x1: X(t.from[0]), y1: Y(t.from[1]), x2: X(t.to[0]), y2: Y(t.to[1]), stroke: '#c77dff', 'stroke-opacity': 0.45, 'stroke-width': 1.5, 'stroke-dasharray': '5 6', 'marker-end': 'url(#tparrow)' }, L.tele);
+        el('line', { x1: X(t.from[0]), y1: Y(t.from[1]), x2: X(t.to[0]), y2: Y(t.to[1]), class: 'tele-link', 'marker-end': 'url(#tparrow)' }, L.tele);
       }
     }
 
@@ -315,6 +314,8 @@
 
     function placeMarkers() {
       const k = iconK.toFixed(3);
+      // Place names keep their size on screen too, so they don't blanket the map when you zoom in.
+      L.labels.querySelectorAll('text').forEach(t => { t.setAttribute('font-size', (t.dataset.fs * iconK).toFixed(2)); t.setAttribute('letter-spacing', (1.5 * iconK).toFixed(2)); });
       for (const r of routeEnds) r.e.setAttribute('transform', `translate(${r.x.toFixed(1)},${r.y.toFixed(1)}) scale(${k})${r.rot}`);
       for (const r of markerEls.values()) r.g.setAttribute('transform', `translate(${X(r.m.u).toFixed(1)},${Y(r.m.v).toFixed(1)}) scale(${iconK.toFixed(3)})`);
     }
@@ -336,8 +337,9 @@
         let opacity = 1, text = '', ring = 0, ringColor = '#ffb547';
         if (TIMED.includes(k) || k === 'midboss') {
           // 669 crates and buff containers: keep them quiet so camps and objectives stand out.
-          if (k === 'crate' || k === 'buff_box') opacity = st.up ? 0.6 : 0.14;
-          else if (!st.up) opacity = k === 'heavy_crate' ? 0.2 : k === 'sinners' ? 0.5 : 0.26;
+          if (k === 'crate' || k === 'buff_box') opacity = st.up ? 0.6 : 0.24;
+          else if (!st.up) opacity = k === 'heavy_crate' ? 0.3 : k === 'sinners' ? 0.55 : k === 'snack' ? 0.34 : 0.26;
+          if (r.waiting !== !st.up) { r.waiting = !st.up; r.g.classList.toggle('waiting', !st.up); }
           // Box brightness (Map layers): scales every crate and buff container, glowing when turned up.
           if (BOXES.includes(k)) opacity = Math.min(1, opacity * boxLevel);
           if (!st.up) {
@@ -459,7 +461,7 @@
               const off = (i - (units.length - 1) / 2) * 0.008;
               const [pu, pv] = view.lanePoint(key, Math.max(0, Math.min(1, pos + dir * Math.abs(off) * 0.6)));
               const ox = (i % 2 ? 5 : -5) * iconK;
-              const c = el('circle', { cx: (X(pu) + ox).toFixed(1), cy: (Y(pv) + (i - 1.5) * 3 * iconK).toFixed(1), r: (u === 'melee' ? 4.2 : 3.4) * iconK, fill: G.teams[team].color, stroke: u === 'medic' ? '#fff' : '#05080b', 'stroke-width': 1.1 * iconK, opacity: op.toFixed(2) }, L.troops);
+              const c = el('circle', { cx: (X(pu) + ox).toFixed(1), cy: (Y(pv) + (i - 1.5) * 3 * iconK).toFixed(1), r: (u === 'melee' ? 4.2 : 3.4) * iconK, fill: pushColor(team, key), stroke: u === 'medic' ? '#fff' : '#05080b', 'stroke-width': 1.1 * iconK, opacity: op.toFixed(2) }, L.troops);
               c.style.pointerEvents = 'none';
             });
           }
@@ -467,6 +469,14 @@
       }
     };
 
+    // Lane colouring like the in-game minimap: your side of a lane in the lane's colour, the enemy's in red. The
+    // other icon sets keep the two team colours.
+    function pushColor(team, key) {
+      const G = GAME();
+      if (!(iconSet && iconSet.colorFor)) return G.teams[team].color;
+      return team === (flip ? 'sapphire' : 'amber') ? G.lanes[key].color : '#e5533d';
+    }
+    view.pushColor = pushColor;
     view.drawFronts = function (fronts, states) {
       L.fronts.innerHTML = '';
       L.rings.innerHTML = '';
@@ -480,7 +490,7 @@
         // How far the lane is pushed: each team's colour from its own base up to where the waves meet.
         for (const [team, s0, s1] of [['amber', 0, fronts[key]], ['sapphire', fronts[key], 1]]) {
           if (Math.abs(s1 - s0) < 0.002) continue;
-          el('path', { d: line(view.laneSubPath(key, s0, s1)), fill: 'none', stroke: G.teams[team].color, 'stroke-opacity': 0.35, 'stroke-width': 8, 'stroke-linecap': 'butt', 'stroke-linejoin': 'round' }, L.push);
+          el('path', { d: line(view.laneSubPath(key, s0, s1)), fill: 'none', stroke: pushColor(team, key), 'stroke-opacity': 0.3, 'stroke-width': 7, 'stroke-linecap': 'butt', 'stroke-linejoin': 'round' }, L.push);
         }
         // Troopers held at the front, when set in the lane editor.
         const tc = troops[key] || {};
@@ -491,11 +501,11 @@
             for (let i = 0; i < n; i++) {
               const s = fronts[key] + dir * (17 + Math.floor(i / 2) * 8) * iconK * perUnit;
               const [pu, pv] = view.lanePoint(key, s);
-              el('circle', { cx: (X(pu) + (i % 2 ? 4.5 : -4.5) * iconK).toFixed(1), cy: Y(pv).toFixed(1), r: 3.8 * iconK, fill: G.teams[team].color, stroke: '#05080b', 'stroke-width': 1.1 * iconK }, L.fronts);
+              el('circle', { cx: (X(pu) + (i % 2 ? 4.5 : -4.5) * iconK).toFixed(1), cy: Y(pv).toFixed(1), r: 3.8 * iconK, fill: pushColor(team, key), stroke: '#05080b', 'stroke-width': 1.1 * iconK }, L.fronts);
             }
           }
           const lab = el('text', { x: X(u), y: Y(v) - 17 * iconK, 'text-anchor': 'middle', 'font-size': 12 * iconK, 'font-weight': 900, stroke: '#05080b', 'stroke-width': 3 * iconK, 'paint-order': 'stroke' }, L.fronts);
-          lab.innerHTML = `<tspan fill="${G.teams.amber.color}">${tc.amber ?? '?'}</tspan><tspan fill="#fff"> v </tspan><tspan fill="${G.teams.sapphire.color}">${tc.sapphire ?? '?'}</tspan>`;
+          lab.innerHTML = `<tspan fill="${pushColor('amber', key)}">${tc.amber ?? '?'}</tspan><tspan fill="#fff"> v </tspan><tspan fill="${pushColor('sapphire', key)}">${tc.sapphire ?? '?'}</tspan>`;
         }
         if (st.mode === 'freeze') {
           const r = view.metersToMap(G.troopers.soulOrbRangeM);
